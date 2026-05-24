@@ -1,6 +1,6 @@
 [package]
 name = "hs-predict"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
 description = "HS code prediction for chemical products — Akinator-style interactive classification with rule-based and LLM hybrid engine"

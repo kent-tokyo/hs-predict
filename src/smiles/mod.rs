@@ -1,8 +1,188 @@
-//! SMILES-based chemical classification (implemented in v0.3).
+//! SMILES-based functional group detection and chapter-level HS classification.
 //!
-//! This module will provide:
-//! - Organic vs. inorganic detection from a SMILES string
-//! - Functional group detection (20 groups)
-//! - HS chapter selection based on detected groups
+//! This module provides a pattern-matching engine that inspects a canonical
+//! SMILES string and infers:
+//!
+//! 1. **Organic vs. inorganic** classification
+//! 2. **Functional groups** present (up to 20 categories)
+//! 3. **HS chapter / heading hint** (approximate, confidence ≤ 0.70)
+//!
+//! The engine is used as Priority 3 in [`HsPipeline::classify`] when the CAS
+//! rule table (Priority 2) finds no match but a SMILES string is available.
+//!
+//! [`HsPipeline::classify`]: crate::pipeline::HsPipeline::classify
+//!
+//! # Example
+//! ```rust
+//! use hs_predict::smiles::classify_smiles;
+//! use hs_predict::smiles::detector::FunctionalGroup;
+//!
+//! let result = classify_smiles("CC(C)=O").unwrap(); // acetone
+//! assert_eq!(result.heading_hint.heading, Some(2914)); // ketone → 29.14
+//! ```
 
-// v0.3 TODO: implement classifier and functional_groups submodules
+pub mod chapter_map;
+pub mod detector;
+
+pub use chapter_map::HeadingHint;
+pub use detector::FunctionalGroup;
+
+use crate::types::OrganicInorganic;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SmilesClassification
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Result of SMILES-based functional group analysis and HS heading estimation.
+#[derive(Debug, Clone)]
+pub struct SmilesClassification {
+    /// Whether the compound is organic, inorganic, or organometallic.
+    pub organic_class: OrganicInorganic,
+
+    /// Functional groups detected in the SMILES string.
+    /// May be empty for simple hydrocarbons (alkanes, alkenes, etc.).
+    pub functional_groups: Vec<FunctionalGroup>,
+
+    /// Best-guess HS chapter / heading based on detected groups.
+    pub heading_hint: HeadingHint,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public entry point
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Analyse a SMILES string and return a chapter-level HS classification hint.
+///
+/// # Returns
+/// - `Some(SmilesClassification)` — analysis result; use
+///   [`SmilesClassification::heading_hint`] for the HS heading.
+/// - `None` — the SMILES string is empty or whitespace-only.
+///
+/// # Notes
+/// - Detection is based on substring matching against canonical SMILES
+///   (as produced by PubChem). Non-canonical or hand-written SMILES may
+///   yield reduced accuracy.
+/// - Results carry confidence ≤ 0.70; always verify with a trade-compliance
+///   expert before using in a customs declaration.
+///
+/// # Example
+/// ```rust
+/// use hs_predict::smiles::classify_smiles;
+///
+/// // Benzaldehyde → aldehyde → 29.12
+/// let r = classify_smiles("O=Cc1ccccc1").unwrap();
+/// assert_eq!(r.heading_hint.heading, Some(2912));
+///
+/// // Acetic acid → carboxylic acid → 29.15
+/// let r = classify_smiles("CC(=O)O").unwrap();
+/// assert_eq!(r.heading_hint.heading, Some(2915));
+/// ```
+pub fn classify_smiles(smiles: &str) -> Option<SmilesClassification> {
+    let smiles = smiles.trim();
+    if smiles.is_empty() {
+        return None;
+    }
+
+    let organic_class = detector::classify_organic(smiles);
+    let functional_groups = detector::detect_functional_groups(smiles);
+    let heading_hint = chapter_map::map_to_heading(&functional_groups, &organic_class);
+
+    Some(SmilesClassification {
+        organic_class,
+        functional_groups,
+        heading_hint,
+    })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_smiles_returns_none() {
+        assert!(classify_smiles("").is_none());
+        assert!(classify_smiles("   ").is_none());
+    }
+
+    #[test]
+    fn acetone_ketone_heading() {
+        // CC(C)=O — acetone (PubChem canonical)
+        let r = classify_smiles("CC(C)=O").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2914));
+        assert!(r.functional_groups.contains(&FunctionalGroup::Ketone));
+        assert!(matches!(r.organic_class, OrganicInorganic::Organic));
+    }
+
+    #[test]
+    fn acetic_acid_heading() {
+        // CC(=O)O — acetic acid
+        let r = classify_smiles("CC(=O)O").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2915));
+        assert!(r.functional_groups.contains(&FunctionalGroup::CarboxylicAcid));
+    }
+
+    #[test]
+    fn ethyl_acetate_heading() {
+        // CCOC(C)=O — ethyl acetate
+        let r = classify_smiles("CCOC(C)=O").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2915));
+        assert!(r.functional_groups.contains(&FunctionalGroup::Ester));
+    }
+
+    #[test]
+    fn benzaldehyde_heading() {
+        // O=Cc1ccccc1 — benzaldehyde
+        let r = classify_smiles("O=Cc1ccccc1").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2912));
+        assert!(r.functional_groups.contains(&FunctionalGroup::Aldehyde));
+    }
+
+    #[test]
+    fn ethanol_heading() {
+        // CCO — ethanol
+        let r = classify_smiles("CCO").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2905));
+        assert!(r.functional_groups.contains(&FunctionalGroup::Alcohol));
+    }
+
+    #[test]
+    fn methylamine_heading() {
+        // CN — methylamine
+        let r = classify_smiles("CN").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2921));
+    }
+
+    #[test]
+    fn chlorobenzene_heading() {
+        // Clc1ccccc1 — chlorobenzene
+        let r = classify_smiles("Clc1ccccc1").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2903));
+        assert!(r.functional_groups.contains(&FunctionalGroup::Halide));
+    }
+
+    #[test]
+    fn co2_is_inorganic_ch28() {
+        let r = classify_smiles("O=C=O").unwrap();
+        assert_eq!(r.heading_hint.chapter, 28);
+        assert!(matches!(r.organic_class, OrganicInorganic::Inorganic));
+    }
+
+    #[test]
+    fn epoxide_heading() {
+        // C1CO1 — ethylene oxide
+        let r = classify_smiles("C1CO1").unwrap();
+        assert_eq!(r.heading_hint.heading, Some(2910));
+    }
+
+    #[test]
+    fn phthalic_anhydride_heading() {
+        // O=C1OC(=O)c2ccccc21
+        let r = classify_smiles("O=C1OC(=O)c2ccccc21").unwrap();
+        assert!(r.functional_groups.contains(&FunctionalGroup::Anhydride));
+        assert_eq!(r.heading_hint.heading, Some(2915));
+    }
+}

@@ -205,9 +205,48 @@ impl HsPipeline {
             }
         }
 
-        // ── Priority 3: SMILES-based rule engine (v0.3 placeholder) ──
-        // TODO: implement SMILES organic/inorganic detection and
-        //       functional group → chapter mapping in v0.3.
+        // ── Priority 3: SMILES-based rule engine ─────────────────────────
+        if let Some(ref smiles) = product.identifier.smiles {
+            if let Some(classification) = crate::smiles::classify_smiles(smiles) {
+                let hint = &classification.heading_hint;
+                // Only emit a result when we have at least a 4-digit heading
+                // and confidence meets the LLM-required threshold.
+                if let Some(heading) = hint.heading {
+                    if hint.confidence >= self.config.confidence_threshold_llm_required {
+                        // Pad to 6 digits with "00" sub-heading (best guess)
+                        let hs_code = format!("{:04}00", heading);
+                        let jp = find_jp_rule(&hs_code);
+                        let action = self.recommended_action(hint.confidence);
+
+                        let mut notes = self.build_notes(product);
+                        notes.push(
+                            "Heading is derived from SMILES functional-group analysis. \
+                             Sub-heading (last two digits) is a placeholder — \
+                             verify the exact 6-digit code with the product specification."
+                                .to_string(),
+                        );
+
+                        let matched_rules: Vec<String> = classification
+                            .functional_groups
+                            .iter()
+                            .map(|g| g.label().to_string())
+                            .collect();
+
+                        return Ok(HsPrediction {
+                            hs_code,
+                            heading_description: hint.rationale.to_string(),
+                            confidence: hint.confidence,
+                            source: PredictionSource::RuleEngine { matched_rules },
+                            notes,
+                            alternatives: vec![],
+                            recommended_action: action,
+                            jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
+                            jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
+                        });
+                    }
+                }
+            }
+        }
 
         // ── Priority 4: LLM fallback (v0.4 placeholder) ───────────────
         // TODO: implement LLM client in v0.4.

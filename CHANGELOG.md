@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] — 2026-05-24
+
+### Added
+
+#### SMILES functional-group detection engine (`smiles` module)
+- `FunctionalGroup` — 20-variant enum covering the main HS Chapter 29 criteria:  
+  `Anhydride`, `Isocyanate`, `Nitrile`, `Nitro`, `Epoxide`, `SulphonicAcid`,  
+  `Phosphate`, `Amide`, `Ester`, `CarboxylicAcid`, `Aldehyde`, `Ketone`,  
+  `Phenol`, `Thiol`, `Sulphide`, `Alcohol`, `Ether`, `Amine`, `Halide`, `AromaticRing`
+- `classify_organic(&str) -> OrganicInorganic` — distinguishes organic / inorganic /
+  organometallic from a SMILES string (pattern-based, no external dependencies)
+- `detect_functional_groups(&str) -> Vec<FunctionalGroup>` — priority-ordered detection
+  using substring matching against PubChem canonical SMILES
+- `HeadingHint` — chapter + 4-digit heading hint with confidence and rationale string
+- `map_to_heading(&[FunctionalGroup], &OrganicInorganic) -> HeadingHint` — maps detected
+  groups to HS chapter/heading via a 20-entry priority table
+- `classify_smiles(&str) -> Option<SmilesClassification>` — public entry point that
+  combines organic classification + group detection + heading mapping
+- `SmilesClassification` — result struct with `organic_class`, `functional_groups`, `heading_hint`
+
+#### Pipeline — Priority 3 integration
+- `HsPipeline::classify` now tries SMILES-based classification when the static rule table
+  finds no match (Priority 3), using the detected heading as a 4-digit hint padded to
+  six digits (`XXXX00`) with `RecommendedAction::VerifyWithLlm`
+
+#### Bug fix — docs.rs failure (v0.2.0 regression)
+- Added stub `src/llm/mod.rs`; the empty `src/llm/` directory caused docs.rs to fail
+  to compile the crate with `--all-features`
+
+### Tests
+- 35 new unit tests (all passing):
+  - `smiles::detector`: 19 tests (organic/inorganic detection + all 20 functional groups)
+  - `smiles::chapter_map`: 11 tests (inorganic Ch.28, organometallic 29.31, heading priority)
+  - `smiles::mod`: 10 tests (integration: SMILES → heading mapping end-to-end)
+
+---
+
 ## [0.2.0] — 2026-05-24
 
 ### Added
@@ -82,6 +119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Version | Target | Description |
 |---------|--------|-------------|
 | 0.1.0 | ✅ 2026-05 | Core rule engine + Akinator session + JP tariff codes |
-| 0.2.0 | 2026-Q3 | PubChem API integration (CAS / IUPAC name / SMILES / InChI lookup) |
-| 0.3.0 | 2026-Q4 | SMILES functional-group detection (20 groups) + mixture GRI classification |
+| 0.2.0 | ✅ 2026-05 | PubChem API integration (CAS / IUPAC name / SMILES / InChI lookup) |
+| 0.3.0 | ✅ 2026-05 | SMILES functional-group detection (20 groups) + pipeline Priority 3 |
 | 0.4.0 | 2027-Q1 | LLM API integration (Claude) with context-aware prompting |
