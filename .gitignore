@@ -1,0 +1,9 @@
+.claude/
+tasks/
+CLAUDE.md
+AGENTS.md
+
+# Added by cargo
+
+/target
+.env

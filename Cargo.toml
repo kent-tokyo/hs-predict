@@ -1,0 +1,68 @@
+[package]
+name = "hs-predict"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "HS code prediction for chemical products — Akinator-style interactive classification with rule-based and LLM hybrid engine"
+repository = "https://github.com/kent-tokyo/hs-predict"
+homepage = "https://github.com/kent-tokyo/hs-predict"
+documentation = "https://docs.rs/hs-predict"
+license = "MIT OR Apache-2.0"
+keywords = ["hs-code", "customs", "chemical", "trade", "llm"]
+categories = ["science", "api-bindings"]
+readme = "README.md"
+exclude = [".github/", "tasks/", ".env"]
+
+[lib]
+name = "hs_predict"
+path = "src/lib.rs"
+
+[features]
+default = []
+# PubChem API integration (HTTP client, cache, rate limiter)
+pubchem = [
+    "dep:reqwest",
+    "dep:moka",
+    "dep:governor",
+    "dep:urlencoding",
+    "dep:tokio",
+]
+# LLM API integration (Claude / OpenAI compatible)
+llm = [
+    "dep:reqwest",
+    "dep:tokio",
+]
+# Mock LLM client for testing
+mock = []
+
+[dependencies]
+# Core — always required
+thiserror          = "2"
+serde              = { version = "1", features = ["derive"] }
+serde_json         = "1"
+# IUPAC name → SMILES resolver (pure Rust, WASM-compatible)
+chem-name-resolver = "0.1"
+
+# Async — optional (pulled in by pubchem/llm features)
+tokio   = { version = "1", features = ["rt-multi-thread"], optional = true }
+futures = "0.3"
+
+# HTTP client — optional
+reqwest = { version = "0.12", features = ["rustls-tls", "json"], optional = true }
+
+# Cache — optional (pubchem feature)
+moka = { version = "0.12", features = ["future"], optional = true }
+
+# Rate limiter — optional (pubchem feature)
+governor = { version = "0.6", optional = true }
+
+# URL encoding — optional (pubchem feature)
+urlencoding = { version = "2", optional = true }
+
+[dev-dependencies]
+tokio      = { version = "1", features = ["full", "macros"] }
+tokio-test = "0.4"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
