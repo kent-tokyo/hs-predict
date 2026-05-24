@@ -21,7 +21,7 @@ use crate::types::OrganicInorganic;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// HS chapter / heading hint derived from SMILES functional group analysis.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct HeadingHint {
     /// HS chapter number (e.g. `28`, `29`).
     pub chapter: u8,

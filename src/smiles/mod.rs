@@ -34,7 +34,7 @@ use crate::types::OrganicInorganic;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Result of SMILES-based functional group analysis and HS heading estimation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SmilesClassification {
     /// Whether the compound is organic, inorganic, or organometallic.
     pub organic_class: OrganicInorganic,

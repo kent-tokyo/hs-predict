@@ -1,3 +1,15 @@
+[workspace]
+members = [".", "hs-predict-wasm"]
+resolver = "2"
+
+# Shared release profile — optimise for small WASM binary size.
+# Both the library crate and hs-predict-wasm use this.
+[profile.release]
+opt-level     = "z"
+lto           = true
+codegen-units = 1
+panic         = "abort"
+
 [package]
 name = "hs-predict"
 version = "0.4.0"

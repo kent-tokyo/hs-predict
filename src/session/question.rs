@@ -119,7 +119,8 @@ pub struct QAPair {
 }
 
 /// `answer()` メソッドの戻り値
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
 pub enum SessionResult {
     /// 次の質問が必要
     NeedMoreInfo { next_question: Question },
