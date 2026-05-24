@@ -60,6 +60,9 @@ pub mod types;
 #[cfg(feature = "pubchem")]
 pub mod pubchem;
 
+#[cfg(feature = "pubchem")]
+pub use pubchem::{PubChemClient, PubChemCompound};
+
 #[cfg(any(feature = "llm", feature = "mock"))]
 pub mod llm;
 

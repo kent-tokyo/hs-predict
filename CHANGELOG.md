@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] — 2026-05-24
+
+### Added
+
+#### PubChem API integration (`pubchem` feature)
+- `PubChemClient` — async HTTP client with built-in rate limiting (5 req/s, configurable) and in-memory caching (1 000 entries, 24 h TTL)
+- `PubChemClientBuilder` — builder for custom rate limits, cache size/TTL, and base URL (useful for testing against a local mock server)
+- `PubChemCompound` — structured result containing CID, IUPAC name, canonical SMILES, InChI, InChIKey, molecular formula, and molecular weight
+- `PubChemClient::lookup(&SubstanceIdentifier)` — look up by CAS number, InChIKey, InChI, SMILES, or IUPAC name (priority order)
+- `PubChemClient::enrich(&mut SubstanceIdentifier)` — fills missing identifier fields in place (best-effort; NotFound is silently ignored)
+- `HsPipeline::with_pubchem(PubChemClient)` — attach a client to the pipeline
+- `HsPipeline::enrich(&mut ProductDescription)` — async enrichment of main identifier + all mixture components
+- 7 unit tests for PubChem module (2 integration tests gated behind `--ignored`, require internet)
+
+---
+
 ## [0.1.0] — 2026-05-24
 
 ### Added

@@ -37,7 +37,7 @@ impl Default for PipelineConfig {
 
 /// Main HS code classification pipeline.
 ///
-/// # Example
+/// # Example — direct (sync)
 /// ```rust,no_run
 /// use hs_predict::pipeline::HsPipeline;
 /// use hs_predict::types::{ProductDescription, SubstanceIdentifier, PhysicalForm};
@@ -57,12 +57,43 @@ impl Default for PipelineConfig {
 /// let prediction = pipeline.classify(&product).unwrap();
 /// assert_eq!(&prediction.hs_code, "281511");
 /// ```
+///
+/// # Example — with PubChem enrichment (async, `pubchem` feature)
+/// ```rust,no_run
+/// # #[cfg(feature = "pubchem")]
+/// # async fn example() -> hs_predict::Result<()> {
+/// use hs_predict::pipeline::HsPipeline;
+/// use hs_predict::pubchem::PubChemClient;
+/// use hs_predict::types::{ProductDescription, SubstanceIdentifier, PhysicalForm};
+///
+/// let pipeline = HsPipeline::new().with_pubchem(PubChemClient::new());
+///
+/// let mut product = ProductDescription {
+///     identifier: SubstanceIdentifier::from_cas("1310-73-2"),
+///     physical_form: Some(PhysicalForm::Solid),
+///     purity_pct: None,
+///     purity_type: None,
+///     mixture_components: None,
+///     intended_use: None,
+///     additional_context: None,
+/// };
+///
+/// pipeline.enrich(&mut product).await?;   // fills SMILES, InChI, IUPAC name …
+/// let prediction = pipeline.classify(&product)?;
+/// println!("{}", prediction.display());   // "28.15.11"
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Default)]
 pub struct HsPipeline {
     /// User-supplied CAS → HS code overrides. Highest priority.
     user_mappings: HashMap<String, String>,
 
     config: PipelineConfig,
+
+    /// PubChem client for identifier enrichment (v0.2, `pubchem` feature).
+    #[cfg(feature = "pubchem")]
+    pubchem: Option<std::sync::Arc<crate::pubchem::PubChemClient>>,
 }
 
 impl HsPipeline {
@@ -83,6 +114,44 @@ impl HsPipeline {
     pub fn with_config(mut self, config: PipelineConfig) -> Self {
         self.config = config;
         self
+    }
+
+    /// Attach a [`PubChemClient`](crate::pubchem::PubChemClient) to enable
+    /// automatic identifier enrichment before classification.
+    ///
+    /// Requires the **`pubchem`** Cargo feature.
+    #[cfg(feature = "pubchem")]
+    pub fn with_pubchem(mut self, client: crate::pubchem::PubChemClient) -> Self {
+        self.pubchem = Some(std::sync::Arc::new(client));
+        self
+    }
+
+    /// Enrich a [`ProductDescription`] with PubChem data.
+    ///
+    /// Fills in any missing fields of the main identifier and each mixture
+    /// component's identifier (SMILES, InChI, InChIKey, IUPAC name, CID).
+    ///
+    /// This is a **best-effort** operation:
+    /// - "Not found" and "no usable identifier" results are silently ignored.
+    /// - Network / parse errors **are** propagated.
+    /// - If no PubChem client is configured, returns `Ok(())` immediately.
+    ///
+    /// Requires the **`pubchem`** Cargo feature.
+    #[cfg(feature = "pubchem")]
+    pub async fn enrich(&self, product: &mut ProductDescription) -> Result<()> {
+        let Some(ref client) = self.pubchem else {
+            return Ok(());
+        };
+
+        client.enrich(&mut product.identifier).await?;
+
+        if let Some(ref mut comps) = product.mixture_components {
+            for comp in comps.iter_mut() {
+                client.enrich(&mut comp.substance).await?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Classify a product and return an HS code prediction.
