@@ -63,7 +63,7 @@ pub mod pubchem;
 #[cfg(feature = "pubchem")]
 pub use pubchem::{PubChemClient, PubChemCompound};
 
-#[cfg(any(feature = "llm", feature = "mock"))]
+#[cfg(feature = "llm")]
 pub mod llm;
 
 // Top-level convenience re-exports

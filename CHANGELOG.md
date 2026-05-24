@@ -193,4 +193,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.1.0 | ✅ 2026-05 | Core rule engine + Akinator session + JP tariff codes |
 | 0.2.0 | ✅ 2026-05 | PubChem API integration (CAS / IUPAC name / SMILES / InChI lookup) |
 | 0.3.0 | ✅ 2026-05 | SMILES functional-group detection (20 groups) + pipeline Priority 3 |
-| 0.4.0 | 2027-Q1 | LLM API integration (Claude) with context-aware prompting |
+| 0.4.0 | ✅ 2026-05 | LLM trait hook + PromptBuilder (EN/JA) + MockLlmClassifier |

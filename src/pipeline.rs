@@ -130,6 +130,19 @@ pub struct HsPipeline {
     llm: Option<Arc<dyn crate::llm::LlmClassifier>>,
 }
 
+impl std::fmt::Debug for HsPipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = f.debug_struct("HsPipeline");
+        s.field("user_mappings", &self.user_mappings);
+        s.field("config", &self.config);
+        #[cfg(feature = "pubchem")]
+        s.field("pubchem", &self.pubchem.as_ref().map(|_| "<PubChemClient>"));
+        #[cfg(feature = "llm")]
+        s.field("llm", &self.llm.as_ref().map(|_| "<dyn LlmClassifier>"));
+        s.finish()
+    }
+}
+
 impl HsPipeline {
     /// Create a pipeline with default configuration.
     pub fn new() -> Self {
