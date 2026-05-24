@@ -3,10 +3,12 @@
 //! Runs classification in priority order:
 //! 1. User-provided CAS → HS mappings (confidence = 1.0)
 //! 2. Embedded static rule table (CAS + shape + purity)
-//! 3. *(placeholder)* SMILES-based rule engine — v0.3
-//! 4. *(placeholder)* LLM API — v0.4
+//! 3. SMILES-based rule engine (v0.3)
+//! 4. LLM fallback via [`LlmClassifier`] trait hook (v0.4, `llm` feature)
 
 use std::collections::HashMap;
+#[cfg(feature = "llm")]
+use std::sync::Arc;
 
 use crate::error::{HsPredictError, Result};
 use crate::rules::jp_table::{find_jp_rule, JP_TARIFF_YEAR};
@@ -84,7 +86,35 @@ impl Default for PipelineConfig {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Default)]
+///
+/// # Example — with LLM fallback (async, `llm` feature)
+/// ```rust,no_run
+/// # #[cfg(feature = "llm")]
+/// # async fn example() -> hs_predict::Result<()> {
+/// use hs_predict::pipeline::HsPipeline;
+/// use hs_predict::llm::{LlmClassifier, LlmPrompt, LlmResponse};
+/// use futures::future::BoxFuture;
+///
+/// struct MyClient;
+/// impl LlmClassifier for MyClient {
+///     fn classify<'a>(&'a self, prompt: &'a LlmPrompt) -> BoxFuture<'a, hs_predict::Result<LlmResponse>> {
+///         Box::pin(async move { todo!() })
+///     }
+/// }
+///
+/// let pipeline = HsPipeline::new().with_llm(MyClient);
+/// use hs_predict::types::{ProductDescription, SubstanceIdentifier};
+/// let product = ProductDescription {
+///     identifier: SubstanceIdentifier::from_cas("12-34-5"),
+///     physical_form: None, purity_pct: None, purity_type: None,
+///     mixture_components: None, intended_use: None, additional_context: None,
+/// };
+/// let prediction = pipeline.classify_with_llm(&product).await?;
+/// println!("{}", prediction.display());
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Default)]
 pub struct HsPipeline {
     /// User-supplied CAS → HS code overrides. Highest priority.
     user_mappings: HashMap<String, String>,
@@ -94,6 +124,10 @@ pub struct HsPipeline {
     /// PubChem client for identifier enrichment (v0.2, `pubchem` feature).
     #[cfg(feature = "pubchem")]
     pubchem: Option<std::sync::Arc<crate::pubchem::PubChemClient>>,
+
+    /// LLM classifier hook (v0.4, `llm` feature).
+    #[cfg(feature = "llm")]
+    llm: Option<Arc<dyn crate::llm::LlmClassifier>>,
 }
 
 impl HsPipeline {
@@ -113,6 +147,21 @@ impl HsPipeline {
     /// Override the default pipeline configuration.
     pub fn with_config(mut self, config: PipelineConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Attach an [`LlmClassifier`](crate::llm::LlmClassifier) implementation to
+    /// enable the LLM fallback (Priority 4).
+    ///
+    /// The LLM is called by [`classify_with_llm`](Self::classify_with_llm) when
+    /// the rule-based pipeline returns a result with
+    /// `recommended_action != Accept`, or returns
+    /// [`LowConfidenceNoLlm`](crate::HsPredictError::LowConfidenceNoLlm).
+    ///
+    /// Requires the **`llm`** Cargo feature.
+    #[cfg(feature = "llm")]
+    pub fn with_llm(mut self, client: impl crate::llm::LlmClassifier + 'static) -> Self {
+        self.llm = Some(Arc::new(client));
         self
     }
 
@@ -248,13 +297,111 @@ impl HsPipeline {
             }
         }
 
-        // ── Priority 4: LLM fallback (v0.4 placeholder) ───────────────
-        // TODO: implement LLM client in v0.4.
-
-        // No rule matched — return low-confidence placeholder
+        // ── Priority 4: LLM fallback ─────────────────────────────────
+        // (async path — use classify_with_llm for LLM support)
         Err(HsPredictError::LowConfidenceNoLlm {
             confidence: 0.0,
             threshold: self.config.confidence_threshold_llm_required,
+        })
+    }
+
+    /// Classify a product, falling back to the configured LLM when the
+    /// rule-based pipeline returns a low-confidence or uncertain result.
+    ///
+    /// # Priority order (same as [`classify`](Self::classify) + LLM)
+    ///
+    /// 1. User-provided mapping → `Accept` → return immediately.
+    /// 2. Embedded static rule table → `Accept` → return immediately.
+    /// 3. SMILES rule engine → `Accept` → return immediately.
+    /// 4. Any result with `recommended_action != Accept`, or
+    ///    `LowConfidenceNoLlm` → forward to LLM.
+    ///
+    /// If no LLM client has been configured via [`with_llm`](Self::with_llm),
+    /// returns [`HsPredictError::LlmNotConfigured`].
+    ///
+    /// # Validation
+    /// The LLM's `hs_code` must be exactly 6 ASCII digits; otherwise
+    /// [`HsPredictError::ValidationFailed`] is returned.
+    ///
+    /// # Chapter consistency
+    /// If the LLM chapter differs from the SMILES engine's chapter hint, a
+    /// warning note is appended — this is **not** a hard error.
+    ///
+    /// Requires the **`llm`** Cargo feature.
+    #[cfg(feature = "llm")]
+    pub async fn classify_with_llm(
+        &self,
+        product: &ProductDescription,
+    ) -> Result<HsPrediction> {
+        use crate::llm::PromptBuilder;
+        use crate::types::AlternativePrediction;
+
+        // First try the synchronous rule-based pipeline.
+        let needs_llm = match self.classify(product) {
+            Ok(pred) if pred.recommended_action == RecommendedAction::Accept => {
+                return Ok(pred);
+            }
+            Ok(_pred) => true,  // low-confidence result → try LLM
+            Err(HsPredictError::LowConfidenceNoLlm { .. }) => true,
+            Err(e) => return Err(e),
+        };
+
+        debug_assert!(needs_llm);
+
+        // Require a configured LLM client.
+        let llm = self
+            .llm
+            .as_ref()
+            .ok_or(HsPredictError::LlmNotConfigured)?;
+
+        // Build prompt and call the LLM.
+        let prompt = PromptBuilder::new().build(product);
+        let resp = llm.classify(&prompt).await?;
+
+        // Validate: must be exactly 6 ASCII digits.
+        if resp.hs_code.len() != 6 || !resp.hs_code.chars().all(|c| c.is_ascii_digit()) {
+            return Err(HsPredictError::ValidationFailed { code: resp.hs_code });
+        }
+
+        // Chapter consistency check (warning only).
+        let mut notes = self.build_notes(product);
+        if let Some(ref analysis) = prompt.smiles_analysis {
+            let llm_chapter = &resp.hs_code[..2];
+            let expected_chapter = format!("{:02}", analysis.heading_hint.chapter);
+            if llm_chapter != expected_chapter {
+                notes.push(format!(
+                    "Chapter mismatch: LLM returned Chapter {} but SMILES engine \
+                     suggested Chapter {}. Verify with Chapter Notes.",
+                    llm_chapter, expected_chapter
+                ));
+            }
+        }
+
+        notes.push(format!("LLM rationale: {}", resp.rationale));
+
+        let jp = find_jp_rule(&resp.hs_code);
+        let action = self.recommended_action(resp.confidence);
+
+        let alternatives = resp
+            .alternatives
+            .into_iter()
+            .map(|a| AlternativePrediction {
+                hs_code: a.hs_code,
+                confidence: a.confidence,
+                reason: a.reason,
+            })
+            .collect();
+
+        Ok(HsPrediction {
+            hs_code: resp.hs_code,
+            heading_description: String::new(),
+            confidence: resp.confidence,
+            source: PredictionSource::LlmApi { model: String::new() },
+            notes,
+            alternatives,
+            recommended_action: action,
+            jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
+            jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
         })
     }
 
@@ -298,5 +445,117 @@ impl HsPipeline {
         }
 
         notes
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline integration tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(all(test, feature = "mock"))]
+mod tests {
+    use super::*;
+    use crate::llm::MockLlmClassifier;
+    use crate::types::{SubstanceIdentifier};
+
+    /// A product with no static rule and a SMILES → triggers LLM path.
+    fn unknown_organic() -> ProductDescription {
+        ProductDescription {
+            identifier: SubstanceIdentifier {
+                cas: None,
+                smiles: Some("CC(O)=O".to_string()), // acetic acid SMILES, unknown CAS
+                iupac_name: None,
+                inchi: None,
+                inchi_key: None,
+                cid: None,
+            },
+            physical_form: None,
+            purity_pct: None,
+            purity_type: None,
+            mixture_components: None,
+            intended_use: None,
+            additional_context: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn classify_with_llm_mock_returns_6_digit_code() {
+        let pipeline = HsPipeline::new().with_llm(MockLlmClassifier::new());
+        let product = unknown_organic();
+        let pred = pipeline.classify_with_llm(&product).await.unwrap();
+        assert_eq!(pred.hs_code.len(), 6);
+        assert!(pred.hs_code.chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[tokio::test]
+    async fn classify_with_llm_mock_chapter_29_for_smiles_acid() {
+        let pipeline = HsPipeline::new().with_llm(MockLlmClassifier::new());
+        let product = unknown_organic();
+        let pred = pipeline.classify_with_llm(&product).await.unwrap();
+        assert!(
+            pred.hs_code.starts_with("29"),
+            "acetic acid SMILES should yield Chapter 29, got {}",
+            pred.hs_code
+        );
+    }
+
+    #[tokio::test]
+    async fn classify_with_llm_no_client_returns_error() {
+        let pipeline = HsPipeline::new(); // no LLM attached
+        let product = unknown_organic();
+        let err = pipeline.classify_with_llm(&product).await.unwrap_err();
+        assert!(
+            matches!(err, HsPredictError::LlmNotConfigured),
+            "expected LlmNotConfigured, got {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn classify_with_llm_skips_llm_for_high_confidence_rule() {
+        // NaOH solid → static rule, confidence = 1.0 → should NOT call LLM
+        let pipeline = HsPipeline::new()
+            .with_llm(MockLlmClassifier::with_default("999999", 0.1));
+        let product = ProductDescription {
+            identifier: SubstanceIdentifier::from_cas("1310-73-2"),
+            physical_form: Some(crate::types::PhysicalForm::Solid),
+            purity_pct: None,
+            purity_type: None,
+            mixture_components: None,
+            intended_use: None,
+            additional_context: None,
+        };
+        let pred = pipeline.classify_with_llm(&product).await.unwrap();
+        // Should be the static rule result, not the mock's "999999"
+        assert_eq!(pred.hs_code, "281511", "static rule should win over LLM");
+    }
+
+    #[tokio::test]
+    async fn classify_with_llm_invalid_code_returns_validation_error() {
+        // Mock returning an invalid code
+        struct BadMock;
+        impl crate::llm::LlmClassifier for BadMock {
+            fn classify<'a>(
+                &'a self,
+                _prompt: &'a crate::llm::LlmPrompt,
+            ) -> futures::future::BoxFuture<'a, crate::Result<crate::llm::LlmResponse>> {
+                Box::pin(async {
+                    Ok(crate::llm::LlmResponse {
+                        hs_code: "BAD!!".to_string(),
+                        confidence: 0.5,
+                        rationale: "bad".to_string(),
+                        alternatives: vec![],
+                    })
+                })
+            }
+        }
+        let pipeline = HsPipeline::new().with_llm(BadMock);
+        let product = unknown_organic();
+        let err = pipeline.classify_with_llm(&product).await.unwrap_err();
+        assert!(
+            matches!(err, HsPredictError::ValidationFailed { .. }),
+            "expected ValidationFailed, got {:?}",
+            err
+        );
     }
 }

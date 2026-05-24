@@ -23,7 +23,7 @@
 - **Mixture support** — enter each component identifier and weight fraction (w/w%) progressively
 - **IUPAC name → SMILES** — auto-resolved via [`chem-name-resolver`](https://crates.io/crates/chem-name-resolver)
 - **PubChem enrichment** *(v0.2, `pubchem` feature)* — fills missing identifiers from CAS / IUPAC / SMILES
-- **LLM integration** *(v0.4, `llm` feature)* — **trait-hook design**: you supply any LLM client; the library supplies the prompt and result type
+- **LLM integration** *(v0.4, `llm` feature)* — **trait-hook design**: implement `LlmClassifier` with your HTTP client; library supplies `PromptBuilder` (EN/JA), `LlmResponse`, validation, and `MockLlmClassifier` for tests
 - **Japan tariff codes** — 統計品目番号 (9-digit) included in every result, based on 実行関税率表 2026-04-01
 
 ---
@@ -305,7 +305,7 @@ Q2: Is this a mixture?
 
 ```toml
 [dependencies]
-hs-predict = { version = "0.3", features = ["pubchem"] }
+hs-predict = { version = "0.4", features = ["pubchem"] }
 ```
 
 ---
@@ -339,7 +339,7 @@ hs-predict = { version = "0.3", features = ["pubchem"] }
 | 0.1.0 | ✅ Released | Core rule engine + Akinator session + Japan tariff codes |
 | 0.2.0 | ✅ Released | PubChem API integration |
 | 0.3.0 | ✅ Released | SMILES functional-group detection (20 groups, Priority 3) |
-| 0.4.0 | 🔜 Planned | `LlmClassifier` trait hook + prompt builder + mock |
+| 0.4.0 | ✅ Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` |
 
 ---
 

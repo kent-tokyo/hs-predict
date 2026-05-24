@@ -1,6 +1,6 @@
 [package]
 name = "hs-predict"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.75"
 description = "HS code prediction for chemical products — Akinator-style interactive classification with rule-based and LLM hybrid engine"
@@ -27,13 +27,11 @@ pubchem = [
     "dep:urlencoding",
     "dep:tokio",
 ]
-# LLM API integration (Claude / OpenAI compatible)
-llm = [
-    "dep:reqwest",
-    "dep:tokio",
-]
-# Mock LLM client for testing
-mock = []
+# LLM trait hook — LlmClassifier, LlmPrompt, LlmResponse, parse_llm_json.
+# No network deps: you bring your own HTTP client.
+llm = []
+# Mock LLM classifier for unit testing (implies llm)
+mock = ["llm"]
 
 [dependencies]
 # Core — always required

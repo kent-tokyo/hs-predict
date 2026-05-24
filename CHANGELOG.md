@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-05-24
+
+### Added
+
+#### LLM trait hook (`llm` feature)
+
+- **`LlmClassifier`** trait — implement this with any HTTP client / model:
+  ```rust
+  pub trait LlmClassifier: Send + Sync {
+      fn classify<'a>(&'a self, prompt: &'a LlmPrompt)
+          -> BoxFuture<'a, Result<LlmResponse>>;
+  }
+  ```
+  Uses `BoxFuture` from `futures` for object safety; no `async_trait` macro needed.
+
+- **`LlmPrompt`** — pre-built system + user text (EN/JA) plus optional
+  `smiles_analysis: Option<SmilesClassification>` for custom prompt construction.
+
+- **`LlmResponse`** + **`LlmAlternative`** — typed return value with
+  `hs_code`, `confidence`, `rationale`, and `alternatives` (serde).
+
+- **`parse_llm_json`** — helper that strips markdown fences
+  (` ```json `, ` ``` `) and deserialises the LLM's JSON reply into `LlmResponse`.
+
+- **`PromptBuilder`** (`llm` feature) — converts a `ProductDescription`
+  into a ready-to-send `LlmPrompt`.
+  - EN and JA system prompts (role, output schema, confidence guide, rules)
+  - User message includes all identifiers, physical form, purity, mixture
+    components, and SMILES functional-group hints when available.
+  - `PromptBuilder::new()` / `PromptBuilder::with_language(Language)`
+
+- **`MockLlmClassifier`** (`mock` feature, implies `llm`) — deterministic
+  stub for unit tests. Derives HS code from SMILES analysis when available;
+  falls back to a configurable default code (`"999999"` by default). No
+  network call ever made.
+  - `MockLlmClassifier::new()` — default fallback `"999999"`
+  - `MockLlmClassifier::with_default(hs_code, confidence)` — custom fallback
+
+#### Pipeline — Priority 4 (`llm` feature)
+
+- **`HsPipeline::with_llm(client)`** — attach any `impl LlmClassifier`
+  (stored as `Arc<dyn LlmClassifier>`).
+
+- **`HsPipeline::classify_with_llm(&product)`** — async classification that
+  first runs Priorities 1–3 and calls the LLM only when the result has
+  `recommended_action != Accept` or returns `LowConfidenceNoLlm`.
+
+  Validation:
+  - LLM `hs_code` must be exactly 6 ASCII digits →
+    `HsPredictError::ValidationFailed` otherwise.
+  - Chapter mismatch vs. SMILES hint appends a warning note (not a hard error).
+
+#### Feature flags
+
+- `llm = []` — **no new compile-time dependencies** (removed `reqwest`/`tokio`
+  from the `llm` feature; the trait hook design requires no network code in
+  the library).
+- `mock = ["llm"]` — implies `llm`.
+
+### Tests
+
+- 5 new pipeline integration tests (`pipeline::tests`, `mock` feature):
+  - `classify_with_llm_mock_returns_6_digit_code`
+  - `classify_with_llm_mock_chapter_29_for_smiles_acid`
+  - `classify_with_llm_no_client_returns_error`
+  - `classify_with_llm_skips_llm_for_high_confidence_rule`
+  - `classify_with_llm_invalid_code_returns_validation_error`
+- 5 mock tests (`llm::mock::tests`)
+- 9 prompt-builder tests (`llm::prompt::tests`)
+
+---
+
 ## [0.3.0] — 2026-05-24
 
 ### Added
