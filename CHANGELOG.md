@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] — 2026-05-24
+
+### Added
+
+#### WebAssembly support (`hs-predict-wasm` workspace crate)
+
+- New companion crate **`hs-predict-wasm`** (published separately on crates.io) exposes
+  the full classification engine to JavaScript via `wasm-bindgen`:
+  - `classify_smiles(smiles: &str) -> JsValue` — SMILES → `SmilesClassification` JS object
+  - `classify_product(json: &str) -> Result<JsValue, JsValue>` — full rule-based pipeline
+  - `WasmSession` — Akinator-style interactive session (`new()` / `new_ja()` / `start()` /
+    `answer()` / `classify()`)
+  - Build: `wasm-pack build --target web --release` → `pkg/` (~317 KB `.wasm`)
+
+- **`SmilesClassification`**, **`HeadingHint`**, **`SessionResult`** now derive
+  `serde::Serialize` (required for `serde-wasm-bindgen` serialisation to JS objects).
+  `SessionResult` uses `#[serde(tag = "type")]` so JS receives `{ type: "Ready" }` etc.
+
+#### Workspace
+
+- Root `Cargo.toml` converted to a Cargo workspace (`members = [".", "hs-predict-wasm"]`).
+- `[profile.release]` (`opt-level = "z"`, `lto = true`, `panic = "abort"`) moved to
+  workspace root so the WASM optimisation settings apply uniformly.
+
+### Notes
+
+- No breaking changes to the `hs-predict` public API.
+- `hs-predict-wasm` requires **wasm-pack** and the `wasm32-unknown-unknown` target;
+  it is not needed for standard Rust / server-side use.
+
+---
+
 ## [0.4.0] — 2026-05-24
 
 ### Added
