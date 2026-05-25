@@ -16,11 +16,13 @@
 ## 特徴
 
 - **Akinatorスタイルのユーザー体験** — HSコード絞り込みに必要な質問だけを行い、最初から全情報を入力させない
-- **ハイブリッドパイプライン** — 静的ルールテーブル → SMILES官能基エンジン → LLMフォールバック（優先順位順）
+- **ハイブリッドパイプライン** — 混合物GRI → 静的ルールテーブル → SMILES官能基エンジン → LLMフォールバック（優先順位順）
 - **物理的形状を考慮したマッチング** — 同一物質でも形状が違えば別HSコード（例: NaOH固体→2815.11、溶液→2815.12）
-- **静的ルールテーブル 98品目** — 第28・29・72〜81類の主要工業化学品
+- **静的ルールテーブル 148エントリ / 133化合物** — 第28・29・38・72〜81類の主要工業化学品
 - **SMILES官能基検出** *(v0.3)* — 20官能基、有機/無機分類、ヘディングレベルのヒント（信頼度 ≤ 0.70）
-- **混合物対応** — 各成分の識別子と重量割合（w/w%）を順番に入力
+- **混合物GRI分類** *(v0.5)* — GRI 3a（同一章）、GRI 3b（主成分 >50% w/w）、GRI 3c（数字上最後の見出し）を自動適用。医薬品（第30類）・化粧品（第33類）・食品（第21類）・農薬（第38.08）は用途別ルーティング
+- **コンプライアンスリスクフラグ** *(v0.5)* — `GrayZone` で第28/29/38類の境界ケースを検出。`PriorConsultation` で事前教示照会を推奨
+- **バッチ処理** *(v0.5)* — `classify_batch()` / `classify_batch_with_llm()` で複数品目を一括分類
 - **IUPAC名→SMILES自動変換** — [`chem-name-resolver`](https://crates.io/crates/chem-name-resolver) を使用
 - **PubChem連携** *(v0.2、`pubchem` フィーチャー)* — CAS/IUPAC/SMILESからの識別子自動補完（決定論的）
 - **LLM連携** *(v0.4、`llm` フィーチャー)* — **Trait hook設計**: 任意のLLMクライアントを実装して接続。ライブラリはプロンプト構築・レスポンス検証を担う
@@ -104,13 +106,20 @@ assert_eq!(p.display(), "28.15.11");
         │
         ▼
  ┌──────────────────────────────────────────────────────────┐
+ │  Priority 0: 混合物GRI分類器      (v0.5)                 │
+ │  GRI 3a → 3b (>50% w/w) → 3c；用途別ルーティング        │
+ │  （医薬品Ch.30/農薬Ch.38.08/化粧品Ch.33/食品Ch.21）     │
+ └──────────────────────┬───────────────────────────────────┘
+                        │ 混合物でない場合
+                        ▼
+ ┌──────────────────────────────────────────────────────────┐
  │  Priority 1: ユーザー提供マッピング  (信頼度 = 1.0)     │
  │  pipeline.with_mapping("64-19-7", "291511")              │
  └──────────────────────┬───────────────────────────────────┘
                         │ ミス
                         ▼
  ┌──────────────────────────────────────────────────────────┐
- │  Priority 2: 静的ルールテーブル    (98品目)              │
+ │  Priority 2: 静的ルールテーブル    (133化合物)           │
  │  CAS + 形状 + 純度 → 6桁HSサブヘディング                 │
  └──────────────────────┬───────────────────────────────────┘
                         │ ミス
@@ -129,7 +138,101 @@ assert_eq!(p.display(), "28.15.11");
                         ▼
                    HsPrediction
               { hs_code, confidence, notes,
-                jp_tariff_code, recommended_action }
+                gray_zone, recommended_action,
+                jp_tariff_code, alternatives }
+```
+
+---
+
+## 混合物GRI分類（v0.5）
+
+`ProductDescription::mixture_components` を設定すると、WCO一般解釈規則（GRI）を自動適用します。
+
+| ステップ | 規則 | 条件 |
+|---|---|---|
+| 0 | 用途別ルーティング | 医薬品→第30類 / 化粧品→第33類 / 食品調製品→第21類 / 農薬→第38.08 |
+| 1 | GRI 3a | 全成分が同一章 → 最具体的見出しを採用 |
+| 2 | GRI 3b | 主成分 > 50% w/w → その成分の分類を採用 |
+| 3 | GRI 3b + LLM | 主成分なし → LLMに委譲（llm feature が必要） |
+| 4 | GRI 3c | 数字上最後の見出し；信頼度0.40；`PriorConsultation` 推奨 |
+
+```rust
+use hs_predict::types::{ProductDescription, SubstanceIdentifier, MixtureComponent, IntendedUse};
+use hs_predict::pipeline::HsPipeline;
+
+let pipeline = HsPipeline::new();
+
+let product = ProductDescription {
+    identifier: SubstanceIdentifier::default(),
+    physical_form: None,
+    purity_pct: None,
+    purity_type: None,
+    intended_use: Some(IntendedUse::Agricultural),
+    mixture_components: Some(vec![
+        MixtureComponent {
+            substance: SubstanceIdentifier::from_cas("1071-83-6"), // グリホサート
+            weight_fraction_pct: Some(41.0),
+            volume_fraction_pct: None,
+            is_solvent: false,
+        },
+    ]),
+    additional_context: None,
+};
+
+let p = pipeline.classify(&product)?;
+// 農薬用途 → 3808.xx（第38類）
+assert_eq!(p.chapter(), "38");
+# Ok::<(), hs_predict::HsPredictError>(())
+```
+
+---
+
+## コンプライアンスリスクフラグ（v0.5）
+
+`HsPrediction` に `gray_zone` フィールドが追加され、境界ケースを検出できます。
+
+```rust
+use hs_predict::types::{GrayZone, RecommendedAction};
+
+let p = pipeline.classify(&product)?;
+
+match p.gray_zone {
+    Some(GrayZone::Chapter29vs38) => {
+        // 有機化合物の調製品 — 第29類 vs 第38類を要確認
+    }
+    Some(GrayZone::MixtureEssentialCharacterUnclear) => {
+        // GRI 3c 適用 — 事前教示（binding tariff information）を強く推奨
+    }
+    _ => {}
+}
+
+if p.recommended_action == RecommendedAction::PriorConsultation {
+    // 申告前に税関へ事前教示を照会する
+}
+```
+
+| `GrayZone` バリアント | 意味 |
+|---|---|
+| `Chapter29vs38` | 有機化合物が用途・調製方法により第38類へシフトする可能性あり |
+| `Chapter28vs29` | 有機金属境界 — 金属–炭素結合の有無が分類を決定する |
+| `MixtureEssentialCharacterUnclear` | GRI 3c 適用（主成分なし）；事前教示を推奨 |
+
+> **事前教示（先例教示）について**: グレーゾーンに該当する場合、最長5年遡及の追徴課税リスクを
+> 回避するため、税関へのBinding Tariff Information（事前教示）申請を強く推奨します。
+
+---
+
+## バッチ処理（v0.5）
+
+```rust
+let products: Vec<ProductDescription> = vec![/* ... */];
+
+// 同期バッチ（Priority 0〜3）
+let results: Vec<Result<HsPrediction>> = pipeline.classify_batch(&products);
+
+// LLMフォールバック付き非同期バッチ（Priority 4）
+# #[cfg(feature = "llm")]
+let results = pipeline.classify_batch_with_llm(&products).await;
 ```
 
 ---
@@ -346,12 +449,12 @@ Q2: 混合物ですか？
 
 ```toml
 [dependencies]
-hs-predict = { version = "0.4", features = ["pubchem"] }
+hs-predict = { version = "0.5", features = ["pubchem"] }
 ```
 
 ---
 
-## 静的ルールテーブルの例（98品目）
+## 静的ルールテーブルの例（133化合物 / 148エントリ）
 
 | CAS番号 | 物質名 | 形状 | HS2022コード |
 |---|---|---|---|
@@ -369,7 +472,7 @@ hs-predict = { version = "0.4", features = ["pubchem"] }
 | 64-17-5 | エタノール | 液体 | 2207.10 |
 | 67-64-1 | アセトン | 液体 | 2914.11 |
 
-全98品目は [`src/rules/static_table.rs`](src/rules/static_table.rs) を参照。
+全148エントリ（133化合物）は [`src/rules/static_table.rs`](src/rules/static_table.rs) を参照。
 
 ---
 
@@ -381,6 +484,9 @@ hs-predict = { version = "0.4", features = ["pubchem"] }
 | 0.2.0 | ✅ リリース済み | PubChem API連携 |
 | 0.3.0 | ✅ リリース済み | SMILES官能基検出（20種） + Pipeline Priority 3 |
 | 0.4.0 | ✅ リリース済み | LLM trait hook + PromptBuilder(EN/JA) + MockLlmClassifier + WASM対応 |
+| 0.4.1 | ✅ リリース済み | WAMSコンパニオンクレート + Serialize追加 |
+| 0.5.0 | 🔜 公開準備中 | 混合物GRI分類 · GrayZone · PriorConsultation · 133化合物 · バッチ処理 · セキュリティ強化 |
+| 0.5.1 | 📋 計画中 | npm公開 · GitHub Actions CI · WASMテスト |
 
 ---
 

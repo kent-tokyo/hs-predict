@@ -84,7 +84,8 @@ impl SubstanceIdentifier {
             return format!("CID:{}", cid);
         }
         if let Some(ref s) = self.smiles {
-            let short = if s.len() > 20 { &s[..20] } else { s.as_str() };
+            // Use char-based slicing to avoid panicking on multi-byte UTF-8 sequences.
+            let short: String = s.chars().take(20).collect();
             return format!("SMILES:{}", short);
         }
         "(unknown)".to_string()
@@ -264,6 +265,13 @@ pub struct HsPrediction {
     /// Recommended next action for the user.
     pub recommended_action: RecommendedAction,
 
+    /// Classification boundary risk indicator (v0.5).
+    ///
+    /// `Some` when the prediction falls in a well-known misclassification gray
+    /// zone (e.g. Chapter 29 vs 38 for organic preparations).  When present,
+    /// consider requesting an advance ruling from customs authorities (事前教示).
+    pub gray_zone: Option<GrayZone>,
+
     /// Nine-digit Japan statistical item code (統計品目番号).
     ///
     /// Based on Japan Customs 実行関税率表. Updated annually; the year used
@@ -277,13 +285,19 @@ pub struct HsPrediction {
 
 impl HsPrediction {
     /// Two-digit chapter code (e.g. `"28"`).
+    ///
+    /// Returns `&self.hs_code` unchanged if the code is shorter than 2 ASCII
+    /// digits (which should not happen for valid predictions).
     pub fn chapter(&self) -> &str {
-        &self.hs_code[..2]
+        self.hs_code.get(..2).unwrap_or(&self.hs_code)
     }
 
     /// Four-digit heading code (e.g. `"2815"`).
+    ///
+    /// Returns `&self.hs_code` unchanged if the code is shorter than 4 ASCII
+    /// digits (which should not happen for valid predictions).
     pub fn heading(&self) -> &str {
-        &self.hs_code[..4]
+        self.hs_code.get(..4).unwrap_or(&self.hs_code)
     }
 
     /// Dot-separated display string (e.g. `"28.15.11"`).
@@ -328,8 +342,44 @@ pub enum RecommendedAction {
     Accept,
     /// Moderate-confidence result — recommend LLM or manual review.
     VerifyWithLlm,
+    /// A formal advance ruling (prior consultation / 事前教示) is recommended.
+    ///
+    /// Applied when a [`GrayZone`] boundary is detected or when mixture
+    /// classification falls back to GRI 3c (last heading by number).
+    /// Contact your local customs authority for a binding ruling before declaration.
+    PriorConsultation,
     /// Low-confidence result — consult a qualified trade-compliance expert.
     ExpertReview,
+}
+
+/// Identifies a classification boundary where misclassification risk is elevated.
+///
+/// When present in [`HsPrediction::gray_zone`], consider requesting a formal
+/// advance ruling (事前教示 / binding tariff information) from customs authorities
+/// before making a customs declaration. Misclassification of chemicals can result
+/// in retroactive duty assessments going back up to five years.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GrayZone {
+    /// Chapter 29 (pure organic chemicals) vs Chapter 38 (prepared/mixed products).
+    ///
+    /// Occurs when an organic compound is part of a formulation, has industrial
+    /// use, or when purity / presentation may shift classification to Ch. 38.
+    /// Multi-function additives and flame-retardant mixtures are common examples.
+    Chapter29vs38,
+
+    /// Chapter 28 (inorganic chemicals) vs Chapter 29 (organic chemicals).
+    ///
+    /// Occurs for organometallic compounds or borderline organic/inorganic cases
+    /// where the presence of metal–carbon bonds determines the correct chapter.
+    Chapter28vs29,
+
+    /// Mixture where essential character (GRI 3b) is ambiguous.
+    ///
+    /// No single component exceeds 50 % w/w, so GRI 3c (last heading by number)
+    /// was applied with low confidence. An expert or advance ruling is strongly
+    /// recommended.
+    MixtureEssentialCharacterUnclear,
 }
 
 // ─────────────────────────────────────────────

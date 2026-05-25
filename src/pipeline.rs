@@ -13,7 +13,10 @@ use std::sync::Arc;
 use crate::error::{HsPredictError, Result};
 use crate::rules::jp_table::{find_jp_rule, JP_TARIFF_YEAR};
 use crate::rules::matcher::find_best_rule;
-use crate::types::{HsPrediction, PhysicalForm, ProductDescription, PredictionSource, RecommendedAction};
+use crate::types::{
+    GrayZone, HsPrediction, OrganicInorganic, PhysicalForm, ProductDescription,
+    PredictionSource, RecommendedAction,
+};
 
 /// Configuration for the classification pipeline.
 #[derive(Debug, Clone)]
@@ -152,8 +155,16 @@ impl HsPipeline {
     /// Add a user-provided CAS → HS code mapping.
     ///
     /// These mappings override the embedded rule table with `confidence = 1.0`.
+    ///
+    /// The `hs_code` must be exactly 6 ASCII digits (e.g. `"281511"`).
+    /// If the code does not satisfy this constraint the mapping is silently
+    /// ignored and the pipeline is returned unchanged.
     pub fn with_mapping(mut self, cas: impl Into<String>, hs_code: impl Into<String>) -> Self {
-        self.user_mappings.insert(cas.into(), hs_code.into());
+        let hs_code = hs_code.into();
+        let valid = hs_code.len() == 6 && hs_code.chars().all(|c| c.is_ascii_digit());
+        if valid {
+            self.user_mappings.insert(cas.into(), hs_code);
+        }
         self
     }
 
@@ -219,11 +230,17 @@ impl HsPipeline {
     /// Classify a product and return an HS code prediction.
     ///
     /// Priority order:
+    /// 0. Mixture branch (v0.5) — GRI 3a/3b/3c via [`crate::mixture`]
     /// 1. User-provided mapping
     /// 2. Embedded static rule table
     /// 3. (v0.3) SMILES rule engine
     /// 4. (v0.4) LLM fallback
     pub fn classify(&self, product: &ProductDescription) -> Result<HsPrediction> {
+        // ── Priority 0: Mixture branch (v0.5) ────────────────────────────
+        if product.is_mixture() {
+            return crate::mixture::classify_mixture(product, |comp| self.classify(comp));
+        }
+
         // ── Priority 1: User-provided mappings ────────────────────────
         if let Some(ref cas) = product.identifier.cas {
             if let Some(hs_code) = self.user_mappings.get(cas.as_str()) {
@@ -236,6 +253,7 @@ impl HsPipeline {
                     notes: vec!["From user-provided mapping".to_string()],
                     alternatives: vec![],
                     recommended_action: RecommendedAction::Accept,
+                    gray_zone: None,
                     jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
                     jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
                 });
@@ -249,7 +267,8 @@ impl HsPipeline {
                 product.physical_form.as_ref(),
                 product.purity_pct,
             ) {
-                let action = self.recommended_action(rule.confidence);
+                let gray_zone = self.detect_gray_zone(product, rule.hs_code, None);
+                let action = self.recommended_action_with_gz(rule.confidence, gray_zone.as_ref());
                 let jp = find_jp_rule(rule.hs_code);
                 return Ok(HsPrediction {
                     hs_code: rule.hs_code.to_string(),
@@ -261,6 +280,7 @@ impl HsPipeline {
                     notes: self.build_notes(product),
                     alternatives: vec![],
                     recommended_action: action,
+                    gray_zone,
                     jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
                     jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
                 });
@@ -278,7 +298,15 @@ impl HsPipeline {
                         // Pad to 6 digits with "00" sub-heading (best guess)
                         let hs_code = format!("{:04}00", heading);
                         let jp = find_jp_rule(&hs_code);
-                        let action = self.recommended_action(hint.confidence);
+
+                        // Detect gray zone using the pre-computed organic class.
+                        let gray_zone = self.detect_gray_zone(
+                            product,
+                            &hs_code,
+                            Some(&classification.organic_class),
+                        );
+                        let action =
+                            self.recommended_action_with_gz(hint.confidence, gray_zone.as_ref());
 
                         let mut notes = self.build_notes(product);
                         notes.push(
@@ -302,6 +330,7 @@ impl HsPipeline {
                             notes,
                             alternatives: vec![],
                             recommended_action: action,
+                            gray_zone,
                             jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
                             jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
                         });
@@ -316,6 +345,31 @@ impl HsPipeline {
             confidence: 0.0,
             threshold: self.config.confidence_threshold_llm_required,
         })
+    }
+
+    /// Classify a batch of products concurrently.
+    ///
+    /// Returns one `Result<HsPrediction>` per input, in the same order.
+    /// Uses synchronous [`classify`](Self::classify) internally — for LLM-backed
+    /// batch classification see `classify_batch_with_llm` (future work).
+    pub fn classify_batch(&self, products: &[ProductDescription]) -> Vec<Result<HsPrediction>> {
+        products.iter().map(|p| self.classify(p)).collect()
+    }
+
+    /// Classify a batch of products using the async LLM path.
+    ///
+    /// Each product is classified via [`classify_with_llm`](Self::classify_with_llm).
+    /// All requests are issued concurrently.
+    ///
+    /// Requires the **`llm`** Cargo feature.
+    #[cfg(feature = "llm")]
+    pub async fn classify_batch_with_llm(
+        &self,
+        products: &[ProductDescription],
+    ) -> Vec<Result<HsPrediction>> {
+        use futures::future::join_all;
+        let futures: Vec<_> = products.iter().map(|p| self.classify_with_llm(p)).collect();
+        join_all(futures).await
     }
 
     /// Classify a product, falling back to the configured LLM when the
@@ -395,9 +449,12 @@ impl HsPipeline {
         let jp = find_jp_rule(&resp.hs_code);
         let action = self.recommended_action(resp.confidence);
 
+        // Only include alternatives whose hs_code passes the same 6-digit
+        // format check applied to the primary result.
         let alternatives = resp
             .alternatives
             .into_iter()
+            .filter(|a| a.hs_code.len() == 6 && a.hs_code.chars().all(|c| c.is_ascii_digit()))
             .map(|a| AlternativePrediction {
                 hs_code: a.hs_code,
                 confidence: a.confidence,
@@ -413,6 +470,7 @@ impl HsPipeline {
             notes,
             alternatives,
             recommended_action: action,
+            gray_zone: None, // LLM response does not carry gray-zone information
             jp_tariff_code: jp.map(|r| r.jp_code.to_string()),
             jp_tariff_year: jp.map(|_| JP_TARIFF_YEAR),
         })
@@ -427,6 +485,70 @@ impl HsPipeline {
             RecommendedAction::VerifyWithLlm
         } else {
             RecommendedAction::ExpertReview
+        }
+    }
+
+    /// Like `recommended_action` but upgrades to `PriorConsultation` when a
+    /// gray zone is present and the confidence does not reach the "direct" threshold.
+    fn recommended_action_with_gz(
+        &self,
+        confidence: f32,
+        gray_zone: Option<&GrayZone>,
+    ) -> RecommendedAction {
+        let base = self.recommended_action(confidence);
+        if gray_zone.is_some() && base != RecommendedAction::Accept {
+            // Gray zone identified → recommend an advance ruling (事前教示)
+            RecommendedAction::PriorConsultation
+        } else {
+            base
+        }
+    }
+
+    /// Detect whether a prediction falls in a well-known gray zone.
+    ///
+    /// When `organic_class` is `Some`, the supplied classification is used
+    /// (e.g. when the SMILES engine has already analysed the structure);
+    /// otherwise the classification is re-derived from
+    /// `product.identifier.smiles` when available.
+    fn detect_gray_zone(
+        &self,
+        product: &ProductDescription,
+        hs_code: &str,
+        organic_class: Option<&OrganicInorganic>,
+    ) -> Option<GrayZone> {
+        let chapter = &hs_code[..2];
+
+        // Chapter 28 / 29 boundary: organometallic or borderline compound
+        if chapter == "28" && self.is_organometallic(product, organic_class) {
+            return Some(GrayZone::Chapter28vs29);
+        }
+
+        // Chapter 29 result but product is used industrially → Ch.29 vs Ch.38
+        if chapter == "29" {
+            use crate::types::IntendedUse;
+            if let Some(IntendedUse::Industrial) = &product.intended_use {
+                return Some(GrayZone::Chapter29vs38);
+            }
+        }
+
+        None
+    }
+
+    /// Whether the product is an organometallic compound — either via the
+    /// pre-computed `organic_class` (preferred) or by re-deriving from SMILES.
+    fn is_organometallic(
+        &self,
+        product: &ProductDescription,
+        organic_class: Option<&OrganicInorganic>,
+    ) -> bool {
+        match organic_class {
+            Some(oc) => matches!(oc, OrganicInorganic::Organometallic),
+            None => product.identifier.smiles.as_deref().is_some_and(|s| {
+                matches!(
+                    crate::smiles::detector::classify_organic(s),
+                    OrganicInorganic::Organometallic,
+                )
+            }),
         }
     }
 

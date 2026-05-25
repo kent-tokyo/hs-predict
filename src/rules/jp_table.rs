@@ -269,13 +269,13 @@ pub static JP_RULES: &[JpRule] = &[
     JpRule {
         hs_code: "283410",
         jp_code: "283410000",
-        jp_description: "硝酸カリウム",
+        jp_description: "亜硝酸塩（亜硝酸ナトリウム等）",
         tariff_rate: Some("free"),
     },
     JpRule {
         hs_code: "283421",
         jp_code: "283421000",
-        jp_description: "硝酸ナトリウム",
+        jp_description: "硝酸カリウム",
         tariff_rate: Some("free"),
     },
     JpRule {
@@ -323,6 +323,18 @@ pub static JP_RULES: &[JpRule] = &[
     JpRule {
         hs_code: "284130",
         jp_code: "284130000",
+        jp_description: "重クロム酸ナトリウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "284150",
+        jp_code: "284150000",
+        jp_description: "その他のクロム酸塩及び重クロム酸塩（重クロム酸カリウム等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "284161",
+        jp_code: "284161000",
         jp_description: "過マンガン酸カリウム",
         tariff_rate: Some("free"),
     },
@@ -621,6 +633,325 @@ pub static JP_RULES: &[JpRule] = &[
         jp_code: "220710000",
         jp_description: "変性していないエチルアルコール（アルコール分≥80%）",
         tariff_rate: None, // complex rate
+    },
+
+    // ═══════════════════════════════════════════════
+    // Chapter 28 — v0.5 additions
+    // ═══════════════════════════════════════════════
+    JpRule {
+        hs_code: "280410",
+        jp_code: "280410000",
+        jp_description: "水素",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "280420",
+        jp_code: "280420000",
+        jp_description: "窒素",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "280440",
+        jp_code: "280440000",
+        jp_description: "酸素",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "281121",
+        jp_code: "281121000",
+        jp_description: "二酸化炭素",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "281129",
+        jp_code: "281129000",
+        jp_description: "非金属の無機酸素化合物（二酸化硫黄等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "281830",
+        jp_code: "281830000",
+        jp_description: "水酸化アルミニウム",
+        tariff_rate: Some("free"),
+    },
+    // NOTE: 281921 and 281929 were removed — they are not valid HS 2022 subheadings.
+    // Heading 28.19 (chromium oxides/hydroxides) only has subheadings .10 and .90.
+    // Dichromates belong under heading 28.41: see 284130 and 284150 below.
+    JpRule {
+        hs_code: "282611",
+        jp_code: "282611000",
+        jp_description: "フッ化物（アンモニウム又はナトリウム）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282710",
+        jp_code: "282710000",
+        jp_description: "塩化アンモニウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282731",
+        jp_code: "282731000",
+        jp_description: "塩化マグネシウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282732",
+        jp_code: "282732000",
+        jp_description: "塩化アルミニウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282733",
+        jp_code: "282733000",
+        jp_description: "塩化鉄",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282735",
+        jp_code: "282735000",
+        jp_description: "塩化ニッケル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "282746",
+        jp_code: "282746000",
+        jp_description: "塩化銅",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "283210",
+        jp_code: "283210000",
+        jp_description: "亜硫酸ナトリウム（メタ重亜硫酸ナトリウム等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "283220",
+        jp_code: "283220000",
+        jp_description: "チオ硫酸ナトリウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "283319",
+        jp_code: "283319000",
+        jp_description: "アルカリ金属の硫酸塩（硫酸カリウム等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "283321",
+        jp_code: "283321000",
+        jp_description: "硫酸マグネシウム",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "283429",
+        jp_code: "283429000",
+        jp_description: "その他の硝酸塩（硝酸カルシウム、硝酸銅等）",
+        tariff_rate: Some("free"),
+    },
+
+    // ═══════════════════════════════════════════════
+    // Chapter 29 — v0.5 additions
+    // ═══════════════════════════════════════════════
+    JpRule {
+        hs_code: "290124",
+        jp_code: "290124000",
+        jp_description: "ブタ-1,3-ジエン",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290125",
+        jp_code: "290125000",
+        jp_description: "スチレン",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290321",
+        jp_code: "290321000",
+        jp_description: "塩化ビニル（クロロエチレン）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290512",
+        jp_code: "290512000",
+        jp_description: "プロパン-2-オール（イソプロピルアルコール）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290539",
+        jp_code: "290539000",
+        jp_description: "その他のジオール（ネオペンチルグリコール等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290545",
+        jp_code: "290545000",
+        jp_description: "グリセリン",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290549",
+        jp_code: "290549000",
+        jp_description: "その他の多価アルコール（TMP、ペンタエリスリトール等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290941",
+        jp_code: "290941000",
+        jp_description: "ジエチレングリコール（2,2'-オキシジエタノール）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291020",
+        jp_code: "291020000",
+        jp_description: "プロピレンオキサイド（1,2-エポキシプロパン）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291412",
+        jp_code: "291412000",
+        jp_description: "ブタノン（メチルエチルケトン）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291421",
+        jp_code: "291421000",
+        jp_description: "シクロヘキサノン",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291515",
+        jp_code: "291515000",
+        jp_description: "プロピオン酸、その塩及びエステル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291519",
+        jp_code: "291519000",
+        jp_description: "その他の飽和非環式モノカルボン酸（酪酸等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291524",
+        jp_code: "291524000",
+        jp_description: "酢酸ブチル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291611",
+        jp_code: "291611000",
+        jp_description: "アクリル酸及びその塩",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291613",
+        jp_code: "291613000",
+        jp_description: "アクリル酸メチル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291614",
+        jp_code: "291614000",
+        jp_description: "メタクリル酸メチル（MMA）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291619",
+        jp_code: "291619000",
+        jp_description: "不飽和モノカルボン酸のエステル（アクリル酸ブチル等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291712",
+        jp_code: "291712000",
+        jp_description: "アジピン酸、その塩及びエステル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291714",
+        jp_code: "291714000",
+        jp_description: "無水マレイン酸",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291719",
+        jp_code: "291719000",
+        jp_description: "その他の非環式ポリカルボン酸（コハク酸等）",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "291736",
+        jp_code: "291736000",
+        jp_description: "テレフタル酸及びその塩",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "292121",
+        jp_code: "292121000",
+        jp_description: "エチレンジアミン及びその塩",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "292122",
+        jp_code: "292122000",
+        jp_description: "ヘキサメチレンジアミン及びその塩",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "292610",
+        jp_code: "292610000",
+        jp_description: "アクリロニトリル",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "292920",
+        jp_code: "292920000",
+        jp_description: "イソシアナート（TDI、MDI等）",
+        tariff_rate: Some("free"),
+    },
+
+    // ═══════════════════════════════════════════════
+    // Chapter 38 — 各種化学工業生産品 (v0.5)
+    // ═══════════════════════════════════════════════
+    JpRule {
+        hs_code: "380210",
+        jp_code: "380210000",
+        jp_description: "活性炭",
+        tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "380800",
+        jp_code: "380800000",
+        jp_description: "殺虫剤、殺菌剤、除草剤等の調製品",
+        tariff_rate: None, // complex rate depending on active ingredient
+    },
+    JpRule {
+        hs_code: "382499",
+        jp_code: "382499000",
+        jp_description: "その他の化学調製品（他に分類されないもの）",
+        tariff_rate: None,
+    },
+
+    // ═══════════════════════════════════════════════
+    // Chapters 21, 30, 33 — special-use products (v0.5)
+    // ═══════════════════════════════════════════════
+    JpRule {
+        hs_code: "210690",
+        jp_code: "210690000",
+        jp_description: "食品調製品（他に分類されないもの）",
+        tariff_rate: None,
+    },
+    JpRule {
+        hs_code: "300490",
+        jp_code: "300490000",
+        jp_description: "医薬品（投与量形態にしたもの等）",
+        tariff_rate: None,
+    },
+    JpRule {
+        hs_code: "330499",
+        jp_code: "330499000",
+        jp_description: "美容品・化粧品調製品（その他）",
+        tariff_rate: None,
     },
 ];
 

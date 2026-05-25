@@ -50,6 +50,7 @@
 //! ```
 
 pub mod error;
+pub mod mixture;
 pub mod pipeline;
 pub mod rules;
 pub mod session;

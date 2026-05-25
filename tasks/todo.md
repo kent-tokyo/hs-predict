@@ -1,6 +1,6 @@
 # hs-predict タスクリスト
 
-最終更新: 2026-05-24
+最終更新: 2026-05-25
 
 ## プロジェクト概要
 
@@ -80,8 +80,10 @@ Q2: 混合物ですか？ [Yes / No]
   - [x] `SubstanceIdentifier`（cas/smiles/iupac_name/inchi/inchi_key/cid）
   - [x] `PhysicalForm` enum（Solid/Powder{粒径}/Granules/Liquid/Solution{溶媒,濃度}/Gas/Foil{厚さ}/Ingot/Unknown）
   - [x] `PurityType` / `MixtureComponent` / `ProductDescription` / `IntendedUse`
-  - [x] `HsPrediction`（hs_code/heading_description/confidence/source/notes/alternatives/recommended_action/jp_tariff_code/jp_tariff_year）
+  - [x] `HsPrediction`（hs_code/heading_description/confidence/source/notes/alternatives/recommended_action/gray_zone/jp_tariff_code/jp_tariff_year）
   - [x] `PredictionSource` / `RecommendedAction` / `OrganicInorganic`（Serialize対応）
+  - [x] `GrayZone` enum（Chapter29vs38/Chapter28vs29/MixtureEssentialCharacterUnclear）— v0.5
+  - [x] `RecommendedAction::PriorConsultation`（事前教示推奨）— v0.5
 - [x] `src/error.rs` — `HsPredictError`（thiserror）
   - [x] 全エラーバリアント実装済み（入力/セッション/パイプライン/LLM/PubChem）
 
@@ -104,7 +106,7 @@ Q2: 混合物ですか？ [Yes / No]
 ## Phase 4: 静的HSルールテーブル ✅
 
 - [x] `src/rules/matcher.rs` — `find_best_rule(cas, form, purity)`（具体性スコア）
-- [x] `src/rules/static_table.rs` — 98品目（第28・29・72〜81類）
+- [x] `src/rules/static_table.rs` — 98→148エントリ / 133化合物（第28・29・38・72〜81類）v0.5
 - [x] `src/rules/jp_table.rs` — 統計品目番号（9桁）約70件（実行関税率表2026-04-01）
 
 ---
@@ -137,14 +139,18 @@ Q2: 混合物ですか？ [Yes / No]
 
 ---
 
-## Phase 7: 混合物分類エンジン
+## Phase 7: 混合物分類エンジン ✅
 
-- [ ] `src/mixture.rs` — `MixtureClassifier`
-  - [ ] 特殊分類チェック（医薬品Ch.30/農薬Ch.38/化粧品Ch.33/食品添加物Ch.21）
-  - [ ] GRI 3a（同一章→最具体的見出し）
-  - [ ] GRI 3b → LLM委譲（本質的特性判定）
-  - [ ] GRI 3c（数字上最後の見出し、低信頼度0.40）
-  - [ ] 主成分優先ロジック（>50% w/w）
+- [x] `src/mixture.rs` — `classify_mixture()` 関数
+  - [x] 特殊分類チェック（医薬品Ch.30/農薬Ch.38/化粧品Ch.33/食品添加物Ch.21）
+  - [x] GRI 3a（同一章→最具体的見出し）
+  - [x] GRI 3b（本質的特性：主成分 >50% w/w）
+  - [x] GRI 3c（数字上最後の見出し、信頼度0.40、PriorConsultation）
+  - [x] `HsPipeline::classify()` に混合物分岐（Priority 0）を追加
+- [x] `src/rules/chapter38.rs` — 第38類用途別分類
+- [x] `GrayZone` 型追加 (`Chapter29vs38` / `Chapter28vs29` / `MixtureEssentialCharacterUnclear`)
+- [x] `RecommendedAction::PriorConsultation` 追加（事前教示推奨）
+- [x] `HsPrediction::gray_zone: Option<GrayZone>` フィールド追加
 
 ---
 
@@ -152,11 +158,15 @@ Q2: 混合物ですか？ [Yes / No]
 
 - [x] `src/pipeline.rs` — `HsPipeline`
   - [x] `PipelineConfig`（thresholds）
-  - [x] `classify(product)` — Priority 1-3 同期分類
+  - [x] `classify(product)` — Priority 0（混合物）+ Priority 1-3 同期分類
   - [x] `classify_with_llm(product)` — Priority 4 非同期分類（`llm` feature）
   - [x] `with_mapping()` / `with_config()` / `with_llm()` / `with_pubchem()`
   - [x] 手動 `Debug` impl（`Arc<dyn LlmClassifier>` 非Debug対応）
-  - [ ] `classify_batch()` — 並列バッチ処理
+  - [x] `classify_batch()` — バッチ処理（v0.5）
+  - [x] `classify_batch_with_llm()` — 非同期バッチ処理（llm feature）
+  - [x] `detect_gray_zone()` — GrayZone境界検出（v0.5）
+  - [x] `recommended_action_with_gz()` — GrayZone考慮の推奨アクション（v0.5）
+  - [x] `with_mapping()` 6桁HSコード形式バリデーション（v0.5）
 
 ---
 
@@ -201,11 +211,11 @@ Q2: 混合物ですか？ [Yes / No]
 
 ## Phase 11: テスト・ドキュメント
 
-- [x] ユニットテスト 93件（全パス）
-- [x] Doctestサンプル 13件（全パス）
-- [x] `README.md` — 英語版（v0.4対応済み）
-- [x] `README_ja.md` — 日本語版（v0.4対応済み）
-- [x] `CHANGELOG.md`（v0.1〜v0.4）
+- [x] ユニットテスト 120件（全パス）v0.5
+- [x] Doctestサンプル 14件（全パス）v0.5
+- [x] `README.md` — 英語版（v0.5対応済み）
+- [x] `README_ja.md` — 日本語版（v0.5対応済み）
+- [x] `CHANGELOG.md`（v0.1〜v0.5）
 - [ ] 統合テスト
   - [ ] `tests/session_flow.rs` — 主要フロー
   - [ ] `tests/rule_engine.rs` — 主要~100品のHS正解率チェック
@@ -220,7 +230,9 @@ Q2: 混合物ですか？ [Yes / No]
 - [x] v0.2.0 公開済み（2026-05-24）
 - [x] v0.3.0 公開済み（2026-05-24）
 - [x] v0.4.0 公開済み（2026-05-24）
-- [ ] v0.5.0 — hs-predict-wasm npm公開 / 混合物GRI分類 / GitHub Actions CI
+- [x] v0.4.1 公開済み（2026-05-24）— WAMSコンパニオンクレート + Serialize追加
+- [ ] v0.5.0 — 混合物GRI分類 / GrayZone / PriorConsultation / 133化合物 / バッチ処理 / セキュリティ強化
+- [ ] v0.5.1 — npm公開 / GitHub Actions CI / WASMテスト
 
 ---
 
@@ -232,4 +244,6 @@ Q2: 混合物ですか？ [Yes / No]
 | v0.2.0 | ✅ 2026-05 | PubChem API連携 |
 | v0.3.0 | ✅ 2026-05 | SMILES官能基検出（20種） + Pipeline Priority 3 |
 | v0.4.0 | ✅ 2026-05 | LLM trait hook + PromptBuilder(EN/JA) + MockLlmClassifier + WASM対応 |
-| v0.5.0 | 🔜 | 混合物GRI分類 / npm公開 / GitHub Actions CI |
+| v0.4.1 | ✅ 2026-05 | WAMSコンパニオンクレート + Serialize追加 |
+| v0.5.0 | 🔜 | 混合物GRI分類 / GrayZone / PriorConsultation / 133化合物 / バッチ処理 / セキュリティ強化 |
+| v0.5.1 | 📋 | npm公開 / GitHub Actions CI / WASMテスト |

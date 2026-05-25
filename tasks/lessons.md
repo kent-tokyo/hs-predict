@@ -1,6 +1,6 @@
 # hs-predict 開発ログ — 教訓・判断記録
 
-最終更新: 2026-05-24
+最終更新: 2026-05-25
 
 ---
 
@@ -89,3 +89,61 @@ docs.rs がコンパイルエラーになる。空のディレクトリはモジ
 workspace 化後も `cargo publish` は個別クレートごとに行う（`-p hs-predict` など）。
 workspace root の Cargo.toml に `[package]` があれば `cargo publish` でそのクレートを公開できる。
 `hs-predict-wasm` は別途 `cargo publish -p hs-predict-wasm` で公開する必要がある。
+
+---
+
+## 静的HSコードテーブルは必ず WCO 品目表で検証する（v0.5）
+
+手作業でHSコードを `static_table.rs` に入力する場合、番号の取り違えが起きやすい。
+
+| 典型的な誤り | 例 |
+|---|---|
+| **硝酸塩 vs 亜硝酸塩の混同** | KNO₃（硝酸カリウム）を `283410`（亜硝酸塩）と誤入力。正解は `283421` |
+| **「カリウム」サブヘディングを他の金属に流用** | NaNO₃に `283421`（of potassium）を使用。正解は `283429`（その他の硝酸塩） |
+| **類の章番号を混同** | KMnO₄（過マンガン酸カリウム）を `284130`（重クロム酸ナトリウム）と入力 |
+| **存在しないサブヘディング** | `281921` / `281929`（28.19は `.10`/`.90` のみ）を入力 |
+| **4桁ヘディングのまま使用** | `281400`（6桁不変則を破る） |
+
+**対策**: 入力後は [taricsupport.com](https://www.taricsupport.com/nomenclature/) や Flexport HS Code ページで
+実在するサブヘディングかを必ず確認する。テストで `assert_eq!(code.len(), 6)` を追加する。
+
+---
+
+## SMILES アルデヒドはアルコール検出ブロックの前にチェックする（v0.5）
+
+`smiles.ends_with("O")` の単純なパターンは、アセトアルデヒド（`CC=O`）を
+アルコールとして誤検出する（アルデヒドとアルコールの両方に分類してしまう）。
+
+**対策**: アルコール検出ブロックを書く前に `has_aldehyde = groups.contains(&FunctionalGroup::Aldehyde)` を確認し、
+`!has_aldehyde` を条件に加える。回帰テスト `acetaldehyde_not_classified_as_alcohol` を追加。
+
+---
+
+## 混合物分類で循環参照を避けるにはクロージャを渡す（v0.5）
+
+`classify_mixture()` が `HsPipeline` を直接参照すると、モジュール間の循環依存が生じる。
+
+**対策**: `classify_mixture(product, classify_component: impl Fn(...) -> Result<HsPrediction>)` の形で
+クロージャを受け取る。パイプライン側は `|comp| self.classify(comp)` を渡す。
+成分の `mixture_components` は `None` なので無限再帰は起きない。
+
+---
+
+## 多引数コンストラクタは Builder パターンに変えると可読性が上がる（v0.5）
+
+`build_prediction(code, desc, conf, source, notes, gz, action, year, jp)` のような9引数関数は、
+引数の順番を間違えてもコンパイラに検出されない。
+
+**対策**: `PredictionBuilder { hs_code, heading_description, confidence, source, notes, gray_zone, recommended_action }` 
+の形にして `.build()` で `HsPrediction` を生成する。`jp_tariff_code`/`jp_tariff_year` は `build()` 内で
+テーブルを引いて自動補完する（重複を排除できる）。
+
+---
+
+## バイトスライス `&s[..n]` は UTF-8 マルチバイト文字でパニックする（v0.5 セキュリティ）
+
+`display_name()` の `&smiles[..20]` は、SMILESに同位体記号（`²H` 等）が含まれると
+バイト境界の中間でスライスしてパニックする。
+
+**対策**: `s.chars().take(20).collect::<String>()` を使う。
+また、公開APIに `str::get(..n)` の安全なスライスか `.chars()` を使う方針を徹底する。

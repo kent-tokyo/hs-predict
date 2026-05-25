@@ -77,9 +77,16 @@ pub struct SmilesClassification {
 /// let r = classify_smiles("CC(=O)O").unwrap();
 /// assert_eq!(r.heading_hint.heading, Some(2915));
 /// ```
+/// Maximum accepted SMILES string length (bytes).
+///
+/// SMILES strings for real-world compounds are at most a few thousand
+/// characters.  This limit prevents algorithmic-complexity denial of service
+/// from excessively long inputs.
+pub const MAX_SMILES_LEN: usize = 4096;
+
 pub fn classify_smiles(smiles: &str) -> Option<SmilesClassification> {
     let smiles = smiles.trim();
-    if smiles.is_empty() {
+    if smiles.is_empty() || smiles.len() > MAX_SMILES_LEN {
         return None;
     }
 

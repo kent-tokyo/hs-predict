@@ -16,11 +16,13 @@
 ## Features
 
 - **Akinator-style UX** — ask only what's needed; no upfront form to fill in
-- **Hybrid classification pipeline** — static rule table → SMILES functional-group engine → LLM fallback (priority order)
+- **Hybrid classification pipeline** — mixture GRI → static rules → SMILES engine → LLM fallback (priority order)
 - **Physical-form awareness** — same compound, different form = different HS code (e.g. NaOH solid → 2815.11, solution → 2815.12)
-- **98-compound static rule table** — common industrial chemicals across Chapters 28, 29, 72–81
+- **148-entry static rule table** (133 compounds) — common industrial chemicals across Chapters 28, 29, 38, 72–81
 - **SMILES functional-group detection** *(v0.3)* — 20 functional groups, organic/inorganic classification, heading-level hint (≤ 0.70 confidence)
-- **Mixture support** — enter each component identifier and weight fraction (w/w%) progressively
+- **Mixture GRI classification** *(v0.5)* — GRI 3a (same chapter), GRI 3b (essential character / dominant component > 50 % w/w), GRI 3c (last heading numerically); special-use routing for pharmaceuticals (Ch. 30), cosmetics (Ch. 33), food preparations (Ch. 21), agrochemicals (Ch. 38.08)
+- **Compliance risk flags** *(v0.5)* — `GrayZone` identifies Chapter 28/29/38 boundary cases; `RecommendedAction::PriorConsultation` signals when an advance ruling (事前教示) should be requested
+- **Batch processing** *(v0.5)* — `classify_batch()` and `classify_batch_with_llm()` for multi-product workflows
 - **IUPAC name → SMILES** — auto-resolved via [`chem-name-resolver`](https://crates.io/crates/chem-name-resolver)
 - **PubChem enrichment** *(v0.2, `pubchem` feature)* — fills missing identifiers from CAS / IUPAC / SMILES
 - **LLM integration** *(v0.4, `llm` feature)* — **trait-hook design**: implement `LlmClassifier` with your HTTP client; library supplies `PromptBuilder` (EN/JA), `LlmResponse`, validation, and `MockLlmClassifier` for tests
@@ -103,13 +105,20 @@ Input: ProductDescription
         │
         ▼
  ┌──────────────────────────────────────────────────────────┐
+ │  Priority 0: Mixture GRI classifier (v0.5)               │
+ │  GRI 3a → 3b (>50 % w/w) → 3c; special-use routing      │
+ │  (pharmaceuticals Ch.30 / agrochemicals Ch.38.08 / …)    │
+ └──────────────────────┬───────────────────────────────────┘
+                        │ not a mixture
+                        ▼
+ ┌──────────────────────────────────────────────────────────┐
  │  Priority 1: User mapping          (confidence = 1.0)    │
  │  pipeline.with_mapping("64-19-7", "291511")              │
  └──────────────────────┬───────────────────────────────────┘
                         │ miss
                         ▼
  ┌──────────────────────────────────────────────────────────┐
- │  Priority 2: Static rule table     (98 chemicals)        │
+ │  Priority 2: Static rule table     (133 compounds)       │
  │  CAS + physical form + purity → exact HS subheading      │
  └──────────────────────┬───────────────────────────────────┘
                         │ miss
@@ -128,7 +137,98 @@ Input: ProductDescription
                         ▼
                    HsPrediction
               { hs_code, confidence, notes,
-                jp_tariff_code, recommended_action }
+                gray_zone, recommended_action,
+                jp_tariff_code, alternatives }
+```
+
+---
+
+## Mixture GRI classification (v0.5)
+
+When `ProductDescription::mixture_components` is set, the pipeline applies the WCO General Rules for Interpretation (GRI) automatically:
+
+| Step | Rule | Condition |
+|---|---|---|
+| 0 | Special-use routing | Pharmaceutical → Ch. 30; Cosmetic → Ch. 33; Food prep → Ch. 21; Agricultural → Ch. 38.08 |
+| 1 | GRI 3a | All components fall in the same HS chapter → most specific heading |
+| 2 | GRI 3b | One component > 50 % w/w → adopt that component's classification |
+| 3 | GRI 3b LLM | No dominant component — delegate to LLM if available |
+| 4 | GRI 3c | Last heading numerically; confidence 0.40; `PriorConsultation` recommended |
+
+```rust
+use hs_predict::types::{ProductDescription, SubstanceIdentifier, MixtureComponent, IntendedUse};
+use hs_predict::pipeline::HsPipeline;
+
+let pipeline = HsPipeline::new();
+
+let product = ProductDescription {
+    identifier: SubstanceIdentifier::default(),
+    physical_form: None,
+    purity_pct: None,
+    purity_type: None,
+    intended_use: Some(IntendedUse::Agricultural),
+    mixture_components: Some(vec![
+        MixtureComponent {
+            substance: SubstanceIdentifier::from_cas("1071-83-6"), // glyphosate
+            weight_fraction_pct: Some(41.0),
+            volume_fraction_pct: None,
+            is_solvent: false,
+        },
+    ]),
+    additional_context: None,
+};
+
+let p = pipeline.classify(&product)?;
+// Agricultural use → 3808.xx (Chapter 38)
+assert_eq!(p.chapter(), "38");
+# Ok::<(), hs_predict::HsPredictError>(())
+```
+
+---
+
+## Compliance risk flags (v0.5)
+
+`HsPrediction` now carries a `gray_zone` field to identify classification boundary risks:
+
+```rust
+use hs_predict::types::{GrayZone, RecommendedAction};
+
+let p = pipeline.classify(&product)?;
+
+match p.gray_zone {
+    Some(GrayZone::Chapter29vs38) => {
+        // Organic compound in a formulation — verify Chapter 29 vs 38
+    }
+    Some(GrayZone::MixtureEssentialCharacterUnclear) => {
+        // GRI 3c applied — advance ruling (事前教示) strongly recommended
+    }
+    _ => {}
+}
+
+if p.recommended_action == RecommendedAction::PriorConsultation {
+    // Contact customs authority for a binding advance ruling before declaration
+}
+```
+
+| `GrayZone` variant | Meaning |
+|---|---|
+| `Chapter29vs38` | Organic compound may shift from Ch. 29 to Ch. 38 due to use/presentation |
+| `Chapter28vs29` | Organometallic borderline — presence of metal–carbon bond is decisive |
+| `MixtureEssentialCharacterUnclear` | GRI 3c applied (no dominant component); formal ruling advised |
+
+---
+
+## Batch processing (v0.5)
+
+```rust
+let products: Vec<ProductDescription> = vec![/* ... */];
+
+// Synchronous batch (Priorities 0–3)
+let results: Vec<Result<HsPrediction>> = pipeline.classify_batch(&products);
+
+// Async batch with LLM fallback (Priority 4)
+# #[cfg(feature = "llm")]
+let results = pipeline.classify_batch_with_llm(&products).await;
 ```
 
 ---
@@ -305,7 +405,7 @@ Q2: Is this a mixture?
 
 ```toml
 [dependencies]
-hs-predict = { version = "0.4", features = ["pubchem"] }
+hs-predict = { version = "0.5", features = ["pubchem"] }
 ```
 
 ---
@@ -328,7 +428,7 @@ hs-predict = { version = "0.4", features = ["pubchem"] }
 | 64-17-5 | Ethanol | Liquid | 2207.10 |
 | 67-64-1 | Acetone | Liquid | 2914.11 |
 
-98 compounds total across Chapters 28, 29, 72–81. See [`src/rules/static_table.rs`](src/rules/static_table.rs) for the full list.
+133 compounds (148 rule entries) across Chapters 28, 29, 38, 72–81. See [`src/rules/static_table.rs`](src/rules/static_table.rs) for the full list.
 
 ---
 
@@ -339,7 +439,10 @@ hs-predict = { version = "0.4", features = ["pubchem"] }
 | 0.1.0 | ✅ Released | Core rule engine + Akinator session + Japan tariff codes |
 | 0.2.0 | ✅ Released | PubChem API integration |
 | 0.3.0 | ✅ Released | SMILES functional-group detection (20 groups, Priority 3) |
-| 0.4.0 | ✅ Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` |
+| 0.4.0 | ✅ Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` + WASM |
+| 0.4.1 | ✅ Released | WASM companion crate + `Serialize` additions |
+| 0.5.0 | 🔜 Pending | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
+| 0.5.1 | 📋 Planned | npm publish · GitHub Actions CI · WASM tests |
 
 ---
 

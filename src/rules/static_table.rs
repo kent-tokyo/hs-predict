@@ -117,9 +117,9 @@ pub static HS_RULES: &[HsRule] = &[
         cas: "7697-37-2",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "280800",
-        heading_description: "Nitric acid; sulphonitric acids",
-        confidence: 0.75, // lower: concentration unknown
+        hs_code: "280890",
+        heading_description: "Nitric acid (concentration unknown — defaulting to standard grade)",
+        confidence: 0.65, // lower: concentration unknown; fuming grade (280810) possible
     },
 
     // ── Phosphoric acid 7664-38-2 ─────────────────────────────────
@@ -171,9 +171,9 @@ pub static HS_RULES: &[HsRule] = &[
         cas: "7664-41-7",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "281400",
-        heading_description: "Ammonia, anhydrous or in aqueous solution",
-        confidence: 0.75,
+        hs_code: "281410",
+        heading_description: "Anhydrous ammonia (form unknown — defaulting to anhydrous; verify if in solution → 281420)",
+        confidence: 0.65, // lower: form unknown; aqueous solution (281420) is also common
     },
 
     // ── Chlorine 7782-50-5 ────────────────────────────────────────
@@ -384,7 +384,7 @@ pub static HS_RULES: &[HsRule] = &[
         shape: ShapePattern::Any,
         purity_range: None,
         hs_code: "290511",
-        heading_description: "Ethanol (methanol)",
+        heading_description: "Ethanol (ethyl alcohol)",
         confidence: 0.70, // varies by denaturation / concentration
     },
 
@@ -635,8 +635,8 @@ pub static HS_RULES: &[HsRule] = &[
         cas: "7722-64-7",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "284130",
-        heading_description: "Potassium permanganate",
+        hs_code: "284161",
+        heading_description: "Permanganates — potassium permanganate",
         confidence: 0.97,
     },
 
@@ -685,8 +685,8 @@ pub static HS_RULES: &[HsRule] = &[
         cas: "7631-99-4",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "283421",
-        heading_description: "Sodium nitrate",
+        hs_code: "283429",
+        heading_description: "Nitrates — sodium nitrate (other nitrates)",
         confidence: 0.97,
     },
 
@@ -695,8 +695,8 @@ pub static HS_RULES: &[HsRule] = &[
         cas: "7757-79-1",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "283410",
-        heading_description: "Potassium nitrate",
+        hs_code: "283421",
+        heading_description: "Nitrates — of potassium (potassium nitrate)",
         confidence: 0.97,
     },
 
@@ -984,5 +984,520 @@ pub static HS_RULES: &[HsRule] = &[
         hs_code: "710691",
         heading_description: "Silver — unwrought",
         confidence: 0.82,
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // Chapter 28 — Inorganic chemicals (v0.5 additions)
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── Hydrogen 1333-74-0 ────────────────────────────────────────
+    HsRule {
+        cas: "1333-74-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "280410",
+        heading_description: "Hydrogen",
+        confidence: 0.97,
+    },
+
+    // ── Nitrogen 7727-37-9 ────────────────────────────────────────
+    HsRule {
+        cas: "7727-37-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "280420",
+        heading_description: "Nitrogen",
+        confidence: 0.97,
+    },
+
+    // ── Oxygen 7782-44-7 ─────────────────────────────────────────
+    HsRule {
+        cas: "7782-44-7",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "280440",
+        heading_description: "Oxygen",
+        confidence: 0.97,
+    },
+
+    // ── Carbon dioxide 124-38-9 ───────────────────────────────────
+    HsRule {
+        cas: "124-38-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "281121",
+        heading_description: "Carbon dioxide",
+        confidence: 0.97,
+    },
+
+    // ── Sulphur dioxide 7446-09-5 ────────────────────────────────
+    HsRule {
+        cas: "7446-09-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "281129",
+        heading_description: "Other inorganic oxygen compounds of non-metals — sulphur dioxide",
+        confidence: 0.93,
+    },
+
+    // ── Ammonium chloride 12125-02-9 ─────────────────────────────
+    HsRule {
+        cas: "12125-02-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282710",
+        heading_description: "Ammonium chloride",
+        confidence: 0.97,
+    },
+
+    // ── Magnesium chloride 7786-30-3 ─────────────────────────────
+    HsRule {
+        cas: "7786-30-3",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282731",
+        heading_description: "Magnesium chloride",
+        confidence: 0.97,
+    },
+
+    // ── Aluminium chloride (anhydrous) 7446-70-0 ─────────────────
+    HsRule {
+        cas: "7446-70-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282732",
+        heading_description: "Aluminium chloride",
+        confidence: 0.97,
+    },
+
+    // ── Iron(II) chloride (ferrous chloride) 7758-94-3 ───────────
+    HsRule {
+        cas: "7758-94-3",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282733",
+        heading_description: "Iron chlorides — iron(II) chloride (ferrous chloride)",
+        confidence: 0.95,
+    },
+
+    // ── Nickel chloride 7718-54-9 ─────────────────────────────────
+    HsRule {
+        cas: "7718-54-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282735",
+        heading_description: "Nickel chlorides",
+        confidence: 0.97,
+    },
+
+    // ── Copper(II) chloride 7447-39-4 ────────────────────────────
+    HsRule {
+        cas: "7447-39-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282746",
+        heading_description: "Chlorides of copper",
+        confidence: 0.95,
+    },
+
+    // ── Sodium fluoride 7681-49-4 ────────────────────────────────
+    HsRule {
+        cas: "7681-49-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "282611",
+        heading_description: "Fluorides of ammonium or sodium — sodium fluoride",
+        confidence: 0.97,
+    },
+
+    // ── Aluminium hydroxide 21645-51-2 ───────────────────────────
+    HsRule {
+        cas: "21645-51-2",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "281830",
+        heading_description: "Aluminium hydroxide",
+        confidence: 0.97,
+    },
+
+    // ── Potassium sulphate 7778-80-5 ─────────────────────────────
+    HsRule {
+        cas: "7778-80-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283319",
+        heading_description: "Sulphates of alkali metals — potassium sulphate",
+        confidence: 0.90, // also Ch.31 as fertiliser depending on grade
+    },
+
+    // ── Sodium thiosulphate 7772-98-7 ────────────────────────────
+    HsRule {
+        cas: "7772-98-7",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283220",
+        heading_description: "Sodium thiosulphate",
+        confidence: 0.97,
+    },
+
+    // ── Magnesium sulphate (Epsom salt) 7487-88-9 ────────────────
+    HsRule {
+        cas: "7487-88-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283321",
+        heading_description: "Magnesium sulphate",
+        confidence: 0.97,
+    },
+
+    // ── Sodium nitrite 7632-00-0 ─────────────────────────────────
+    HsRule {
+        cas: "7632-00-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283410",
+        heading_description: "Nitrites — sodium nitrite",
+        confidence: 0.97,
+    },
+
+    // ── Calcium nitrate 10124-37-5 ───────────────────────────────
+    HsRule {
+        cas: "10124-37-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283429",
+        heading_description: "Nitrates — calcium nitrate",
+        confidence: 0.93,
+    },
+
+    // ── Sodium dichromate 10588-01-9 ─────────────────────────────
+    // Heading 28.41 (salts of oxometallic/peroxometallic acids); 284130 is the
+    // specific WCO subheading for sodium dichromate.
+    HsRule {
+        cas: "10588-01-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "284130",
+        heading_description: "Salts of oxometallic acids — sodium dichromate",
+        confidence: 0.97,
+    },
+
+    // ── Potassium dichromate 7778-50-9 ───────────────────────────
+    // 284150 covers other chromates and dichromates (excl. sodium dichromate).
+    HsRule {
+        cas: "7778-50-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "284150",
+        heading_description: "Salts of oxometallic acids — other chromates/dichromates (potassium dichromate)",
+        confidence: 0.97,
+    },
+
+    // ── Sodium metabisulphite 7681-57-4 ──────────────────────────
+    HsRule {
+        cas: "7681-57-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283210",
+        heading_description: "Sodium sulphites — sodium metabisulphite",
+        confidence: 0.95,
+    },
+
+    // ── Copper(II) nitrate 3251-23-8 ─────────────────────────────
+    HsRule {
+        cas: "3251-23-8",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "283429",
+        heading_description: "Nitrates — copper nitrate",
+        confidence: 0.93,
+    },
+
+    // ─══════════════════════════════════════════════════════════════
+    // Chapter 29 — Organic chemicals (v0.5 additions)
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── Styrene 100-42-5 ─────────────────────────────────────────
+    HsRule {
+        cas: "100-42-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290125",
+        heading_description: "Styrene",
+        confidence: 0.97,
+    },
+
+    // ── 1,3-Butadiene 106-99-0 ───────────────────────────────────
+    HsRule {
+        cas: "106-99-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290124",
+        heading_description: "Buta-1,3-diene",
+        confidence: 0.97,
+    },
+
+    // ── Vinyl chloride (chloroethylene) 75-01-4 ──────────────────
+    HsRule {
+        cas: "75-01-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290321",
+        heading_description: "Vinyl chloride (chloroethylene)",
+        confidence: 0.97,
+    },
+
+    // ── 2-Butanone (MEK, methyl ethyl ketone) 78-93-3 ────────────
+    HsRule {
+        cas: "78-93-3",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291412",
+        heading_description: "Butanone (methyl ethyl ketone)",
+        confidence: 0.97,
+    },
+
+    // ── n-Butyl acetate 123-86-4 ─────────────────────────────────
+    HsRule {
+        cas: "123-86-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291524",
+        heading_description: "Butyl acetates",
+        confidence: 0.97,
+    },
+
+    // ── Maleic anhydride 108-31-6 ────────────────────────────────
+    HsRule {
+        cas: "108-31-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291714",
+        heading_description: "Maleic anhydride",
+        confidence: 0.97,
+    },
+
+    // ── Terephthalic acid 100-21-0 ───────────────────────────────
+    HsRule {
+        cas: "100-21-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291736",
+        heading_description: "Terephthalic acid and its salts",
+        confidence: 0.97,
+    },
+
+    // ── Adipic acid 124-04-9 ─────────────────────────────────────
+    HsRule {
+        cas: "124-04-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291712",
+        heading_description: "Adipic acid, its salts and esters",
+        confidence: 0.97,
+    },
+
+    // ── Propylene oxide (1,2-epoxypropane) 75-56-9 ───────────────
+    HsRule {
+        cas: "75-56-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291020",
+        heading_description: "Propylene oxide (1,2-epoxypropane)",
+        confidence: 0.97,
+    },
+
+    // ── Glycerol (glycerin) 56-81-5 ──────────────────────────────
+    HsRule {
+        cas: "56-81-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290545",
+        heading_description: "Glycerol",
+        confidence: 0.95,
+    },
+
+    // ── Diethylene glycol (DEG) 111-46-6 ─────────────────────────
+    HsRule {
+        cas: "111-46-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290941",
+        heading_description: "Diethylene glycol (2,2'-oxydiethanol)",
+        confidence: 0.97,
+    },
+
+    // ── Cyclohexanone 108-94-1 ───────────────────────────────────
+    HsRule {
+        cas: "108-94-1",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291421",
+        heading_description: "Cyclohexanone and methylcyclohexanones",
+        confidence: 0.97,
+    },
+
+    // ── Acrylic acid 79-10-7 ─────────────────────────────────────
+    HsRule {
+        cas: "79-10-7",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291611",
+        heading_description: "Acrylic acid and its salts",
+        confidence: 0.97,
+    },
+
+    // ── Methyl methacrylate 80-62-6 ──────────────────────────────
+    HsRule {
+        cas: "80-62-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291614",
+        heading_description: "Methyl methacrylate",
+        confidence: 0.97,
+    },
+
+    // ── Acrylonitrile 107-13-1 ───────────────────────────────────
+    HsRule {
+        cas: "107-13-1",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "292610",
+        heading_description: "Acrylonitrile",
+        confidence: 0.97,
+    },
+
+    // ── Ethylenediamine 107-15-3 ─────────────────────────────────
+    HsRule {
+        cas: "107-15-3",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "292121",
+        heading_description: "Ethylenediamine and its salts",
+        confidence: 0.97,
+    },
+
+    // ── Hexamethylenediamine (HMDA) 124-09-4 ─────────────────────
+    HsRule {
+        cas: "124-09-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "292122",
+        heading_description: "Hexamethylenediamine and its salts",
+        confidence: 0.97,
+    },
+
+    // ── Neopentyl glycol (2,2-dimethyl-1,3-propanediol) 126-30-7 ─
+    HsRule {
+        cas: "126-30-7",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290539",
+        heading_description: "Other diols — neopentyl glycol",
+        confidence: 0.95,
+    },
+
+    // ── Trimethylolpropane 77-99-6 ───────────────────────────────
+    HsRule {
+        cas: "77-99-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290549",
+        heading_description: "Other polyhydric alcohols — trimethylolpropane (TMP)",
+        confidence: 0.95,
+    },
+
+    // ── Pentaerythritol 115-77-5 ─────────────────────────────────
+    HsRule {
+        cas: "115-77-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290549",
+        heading_description: "Other polyhydric alcohols — pentaerythritol",
+        confidence: 0.95,
+    },
+
+    // ── Toluene diisocyanate (TDI, 80:20) 26471-62-5 ────────────
+    HsRule {
+        cas: "26471-62-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "292920",
+        heading_description: "Isocyanates — toluene diisocyanate (TDI)",
+        confidence: 0.95,
+    },
+
+    // ── 4,4'-Methylenediphenyl diisocyanate (MDI) 101-68-8 ───────
+    HsRule {
+        cas: "101-68-8",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "292920",
+        heading_description: "Isocyanates — methylene diphenyl diisocyanate (MDI)",
+        confidence: 0.95,
+    },
+
+    // ── n-Butyl acrylate 141-32-2 ────────────────────────────────
+    HsRule {
+        cas: "141-32-2",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291619",
+        heading_description: "Esters of unsaturated monocarboxylic acids — n-butyl acrylate",
+        confidence: 0.93,
+    },
+
+    // ── Methyl acrylate 96-33-3 ──────────────────────────────────
+    HsRule {
+        cas: "96-33-3",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291613",
+        heading_description: "Esters of acrylic acid — methyl acrylate",
+        confidence: 0.95,
+    },
+
+    // ── Propionic acid 79-09-4 ───────────────────────────────────
+    HsRule {
+        cas: "79-09-4",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291515",
+        heading_description: "Propionic acid, its salts and esters",
+        confidence: 0.97,
+    },
+
+    // ── Butyric acid (butanoic acid) 107-92-6 ────────────────────
+    HsRule {
+        cas: "107-92-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291519",
+        heading_description: "Other saturated acyclic monocarboxylic acids — butyric acid",
+        confidence: 0.93,
+    },
+
+    // ── Succinic acid (butanedioic acid) 110-15-6 ────────────────
+    HsRule {
+        cas: "110-15-6",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "291719",
+        heading_description: "Other acyclic polycarboxylic acids — succinic acid",
+        confidence: 0.95,
+    },
+
+    // ═══════════════════════════════════════════════════════════════
+    // Chapter 38 — Miscellaneous chemical products (v0.5 additions)
+    // ═══════════════════════════════════════════════════════════════
+
+    // ── Activated carbon 7440-44-0 ───────────────────────────────
+    HsRule {
+        cas: "7440-44-0",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "380210",
+        heading_description: "Activated carbon",
+        confidence: 0.97,
     },
 ];

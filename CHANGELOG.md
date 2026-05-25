@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — v0.5.0
+
+### Added
+
+#### Mixture GRI classification (`src/mixture.rs`)
+
+- New **`mixture`** module implementing WCO General Rules for Interpretation:
+  - **Step 0** — Intended-use fast-path: Pharmaceutical → Ch.30,
+    Agricultural pesticide formulations → Ch.38.08, Cosmetics → Ch.33, Food → Ch.21.
+  - **GRI 3a** — All components in the same chapter → most specific heading by confidence.
+  - **GRI 3b** — Dominant component (>50 % w/w) → essential character classification.
+  - **GRI 3c** — Fallback: last heading numerically; sets `gray_zone` and
+    `recommended_action = PriorConsultation`.
+- `HsPipeline::classify()` now routes mixture products (`is_mixture() == true`) through
+  the mixture classifier automatically (Priority 0, before all existing priorities).
+
+#### Compliance risk flags (`src/types.rs`)
+
+- **`GrayZone`** enum — identifies high-risk classification boundaries:
+  - `Chapter29vs38` — organic compound vs. prepared formulation (most common misclassification)
+  - `Chapter28vs29` — inorganic vs. organic (organometallic edge case)
+  - `MixtureEssentialCharacterUnclear` — GRI 3c applied; no dominant component
+- **`HsPrediction::gray_zone: Option<GrayZone>`** — `Some` when a boundary risk is detected.
+- **`RecommendedAction::PriorConsultation`** — new variant recommending a formal advance
+  ruling (事前教示) from customs authorities. Applied when `gray_zone` is set and
+  confidence is below the `Accept` threshold.
+
+#### Chapter 38 rules (`src/rules/chapter38.rs`)
+
+- New `chapter38` module with `classify_by_intended_use()` and `special_chapter_by_use()`
+  for use-case-driven mixture classification.
+- Constant `CHAPTER38_CATCH_ALL_CODE` (`"382499"`) as the GRI 3c last-resort fallback.
+
+#### Static rule table expansion (`src/rules/static_table.rs`)
+
+- Expanded from **98 → ~155 chemicals** with ECICS-validated codes:
+  - **Chapter 28** additions: H₂, N₂, O₂, CO₂, SO₂, NH₄Cl, MgCl₂, AlCl₃, FeCl₂,
+    NiCl₂, CuCl₂, NaF, Al(OH)₃, K₂SO₄, Na₂S₂O₃, MgSO₄, NaNO₂, Ca(NO₃)₂,
+    Na₂Cr₂O₇, K₂Cr₂O₇, sodium metabisulphite.
+  - **Chapter 29** additions: styrene, 1,3-butadiene, vinyl chloride, MEK, n-BuOAc,
+    maleic anhydride, terephthalic acid, adipic acid, propylene oxide, glycerol, DEG,
+    cyclohexanone, acrylic acid, MMA, acrylonitrile, ethylenediamine, HMDA,
+    neopentyl glycol, TMP, pentaerythritol, TDI, MDI, n-butyl acrylate, methyl acrylate,
+    propionic acid, butyric acid, succinic acid.
+  - **Chapter 38** addition: activated carbon (380210).
+- Corresponding Japan statistical item codes added to `jp_table.rs` (2026 tariff schedule).
+
+#### Batch classification
+
+- `HsPipeline::classify_batch(&[ProductDescription]) -> Vec<Result<HsPrediction>>`
+  — synchronous batch processing.
+- `HsPipeline::classify_batch_with_llm(&[ProductDescription]) -> Vec<Result<HsPrediction>>`
+  — async, concurrent LLM batch processing (`llm` feature).
+
+### Changed
+
+- `HsPipeline::classify()` now automatically dispatches mixtures to the GRI classifier.
+- `recommended_action()` logic updated: gray-zone presence upgrades `VerifyWithLlm` →
+  `PriorConsultation`.
+- Gray-zone detection added for static rule matches (industrial-use organics) and
+  SMILES engine results (organometallics).
+- Fixed 4 pre-existing `clippy` warnings (`single_match`, `collapsible_if`,
+  `format_in_format_args`) that were blocking `cargo clippy -D warnings`.
+
+---
+
 ## [0.4.1] — 2026-05-24
 
 ### Added

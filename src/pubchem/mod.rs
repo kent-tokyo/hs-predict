@@ -152,6 +152,10 @@ impl Default for PubChemClient {
 
 impl PubChemClient {
     /// Create a client with PubChem's default rate limit (5 req/s).
+    ///
+    /// # Panics
+    /// Panics if the TLS backend cannot be initialised (extremely rare;
+    /// indicates a broken system environment).
     pub fn new() -> Self {
         Self::builder().build()
     }
@@ -339,24 +343,43 @@ impl PubChemClientBuilder {
     }
 
     /// Build the [`PubChemClient`].
+    ///
+    /// # Panics
+    /// Panics if the TLS backend cannot be initialised (extremely rare;
+    /// indicates a broken system environment).  For an infallible path in
+    /// constrained environments use [`try_build`](Self::try_build).
     pub fn build(self) -> PubChemClient {
-        let quota = Quota::per_second(
-            NonZeroU32::new(self.requests_per_second)
-                .expect("requests_per_second must be ≥ 1"),
-        );
+        self.try_build()
+            .expect("failed to build PubChemClient — TLS backend unavailable")
+    }
 
-        PubChemClient {
-            http: reqwest::Client::builder()
-                .user_agent(self.user_agent)
-                .build()
-                .expect("failed to build reqwest::Client"),
+    /// Build the [`PubChemClient`], returning an error instead of panicking if
+    /// the underlying HTTP client cannot be initialised (e.g. TLS failure).
+    ///
+    /// Prefer this over [`build`](Self::build) in long-running servers and WASM
+    /// environments where a panic is unacceptable.
+    pub fn try_build(self) -> Result<PubChemClient> {
+        // `requests_per_second` is always ≥ 1 because the setter clamps with
+        // `.max(1)` and the default is 5, so `NonZeroU32::new` never returns
+        // `None` here.
+        let rps = NonZeroU32::new(self.requests_per_second.max(1))
+            .expect("max(1) guarantees non-zero");
+        let quota = Quota::per_second(rps);
+
+        let http = reqwest::Client::builder()
+            .user_agent(self.user_agent)
+            .build()
+            .map_err(|e| HsPredictError::Http(format!("failed to build HTTP client: {e}")))?;
+
+        Ok(PubChemClient {
+            http,
             cache: Cache::builder()
                 .max_capacity(self.cache_capacity)
                 .time_to_live(self.cache_ttl)
                 .build(),
             limiter: Arc::new(RateLimiter::direct(quota)),
             base_url: self.base_url,
-        }
+        })
     }
 }
 

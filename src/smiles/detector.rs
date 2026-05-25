@@ -350,7 +350,9 @@ pub fn detect_functional_groups(smiles: &str) -> Vec<FunctionalGroup> {
     let has_acid = groups.contains(&FunctionalGroup::CarboxylicAcid);
     let has_ester2 = groups.contains(&FunctionalGroup::Ester);
     let has_anhydride2 = groups.contains(&FunctionalGroup::Anhydride);
-    if !has_phenol && !has_acid && !has_ester2 && !has_anhydride2 {
+    // Also guard against aldehyde: "CC=O" ends with "O" but is not an alcohol.
+    let has_aldehyde_grp = groups.contains(&FunctionalGroup::Aldehyde);
+    if !has_phenol && !has_acid && !has_ester2 && !has_anhydride2 && !has_aldehyde_grp {
         let alcohol = any(&["[OH]", "C[OH]"])
             || smiles.ends_with("CO")
             || smiles.ends_with("CCO")
@@ -366,10 +368,9 @@ pub fn detect_functional_groups(smiles: &str) -> Vec<FunctionalGroup> {
     let has_epoxide = groups.contains(&FunctionalGroup::Epoxide);
     let has_ester3 = groups.contains(&FunctionalGroup::Ester);
     let has_acid2 = groups.contains(&FunctionalGroup::CarboxylicAcid);
-    if !has_epoxide && !has_ester3 && !has_acid2 && !has_anhydride {
-        if any(&["COC", "cOC", "COc", "cOc"]) {
-            groups.push(FunctionalGroup::Ether);
-        }
+    if !has_epoxide && !has_ester3 && !has_acid2 && !has_anhydride
+        && any(&["COC", "cOC", "COc", "cOc"]) {
+        groups.push(FunctionalGroup::Ether);
     }
 
     // ── 18. Amine ─────────────────────────────────────────────────────────
@@ -477,6 +478,15 @@ mod tests {
         // CC=O
         assert!(has("CC=O", FunctionalGroup::Aldehyde));
         assert!(!has("CC=O", FunctionalGroup::Ketone));
+    }
+
+    /// Regression test: "CC=O" (acetaldehyde) must NOT be classified as Alcohol.
+    /// The terminal "O" in "CC=O" was previously caught by the generic
+    /// `smiles.ends_with("O")` check in the alcohol branch.
+    #[test]
+    fn acetaldehyde_not_classified_as_alcohol() {
+        assert!(!has("CC=O", FunctionalGroup::Alcohol),
+            "aldehyde SMILES 'CC=O' must not produce Alcohol group");
     }
 
     #[test]

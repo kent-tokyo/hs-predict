@@ -90,9 +90,23 @@ impl ClassificationSession {
     /// Return the first question and mark it as the active question.
     ///
     /// Must be called once before the first [`answer()`](Self::answer) call.
+    ///
+    /// In the extremely unlikely event that the question-flow engine returns no
+    /// question for a fresh state (which indicates a logic bug), a generic
+    /// identifier prompt is returned rather than panicking.  This prevents
+    /// `panic = "abort"` from terminating the WASM module or a long-running
+    /// server process.
     pub fn start(&mut self) -> Question {
         let (q, step) = next_question(&self.state, self.language)
-            .expect("new session should always have a first question");
+            .unwrap_or_else(|| {
+                // Defensive fallback: should never be reached on a default state.
+                let prompt = "Enter a product identifier (CAS number, SMILES, or IUPAC name):"
+                    .to_string();
+                (
+                    Question::Text { prompt, example: Some("1310-73-2".to_string()) },
+                    QuestionStep::Identifier,
+                )
+            });
         self.current_question = Some(q.clone());
         self.current_step = Some(step);
         q
@@ -297,11 +311,8 @@ impl ClassificationSession {
     }
 
     fn apply_yes_no(&mut self, val: bool) {
-        match self.current_step {
-            Some(QuestionStep::IsMixture) => {
-                self.state.is_mixture = Some(val);
-            }
-            _ => {}
+        if let Some(QuestionStep::IsMixture) = self.current_step {
+            self.state.is_mixture = Some(val);
         }
     }
 

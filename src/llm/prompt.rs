@@ -10,6 +10,29 @@ use super::LlmPrompt;
 // PromptBuilder
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Maximum length (chars) of user-supplied `additional_context` text that is
+/// injected into LLM prompts.  Content beyond this limit is silently truncated.
+const MAX_CONTEXT_CHARS: usize = 500;
+
+/// Sanitize free-text supplied by the user before it is injected into an LLM
+/// prompt.
+///
+/// - Strips ASCII control characters (newlines, carriage returns, tabs, etc.)
+///   to prevent prompt injection via line-break-based structure manipulation.
+/// - Truncates to [`MAX_CONTEXT_CHARS`] characters.
+fn sanitize_context(ctx: &str) -> String {
+    let cleaned: String = ctx
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_CONTEXT_CHARS)
+        .collect();
+    cleaned
+}
+
 /// Builds the system and user prompt texts from a [`ProductDescription`].
 ///
 /// # Example
@@ -226,9 +249,10 @@ Respond with **only** a JSON object — no prose, no markdown:
             }
         }
 
-        // Additional context
+        // Additional context — sanitized to prevent prompt-injection via
+        // control characters or excessively long free-text input.
         if let Some(ref ctx) = product.additional_context {
-            parts.push(format!("- **Additional context**: {}", ctx));
+            parts.push(format!("- **Additional context**: {}", sanitize_context(ctx)));
         }
 
         // SMILES analysis hint
@@ -236,10 +260,7 @@ Respond with **only** a JSON object — no prose, no markdown:
             parts.push(String::new());
             parts.push("## SMILES pre-analysis hint".to_string());
             parts.push(String::new());
-            parts.push(format!(
-                "- **Organic class**: {}",
-                format!("{:?}", analysis.organic_class)
-            ));
+            parts.push(format!("- **Organic class**: {:?}", analysis.organic_class));
             if !analysis.functional_groups.is_empty() {
                 let groups: Vec<&str> = analysis
                     .functional_groups
@@ -327,18 +348,16 @@ Respond with **only** a JSON object — no prose, no markdown:
             }
         }
 
+        // `additional_context` — sanitized to prevent prompt-injection.
         if let Some(ref ctx) = product.additional_context {
-            parts.push(format!("- **補足情報**: {}", ctx));
+            parts.push(format!("- **補足情報**: {}", sanitize_context(ctx)));
         }
 
         if let Some(analysis) = smiles_analysis {
             parts.push(String::new());
             parts.push("## SMILES 事前解析ヒント".to_string());
             parts.push(String::new());
-            parts.push(format!(
-                "- **有機/無機区分**: {}",
-                format!("{:?}", analysis.organic_class)
-            ));
+            parts.push(format!("- **有機/無機区分**: {:?}", analysis.organic_class));
             if !analysis.functional_groups.is_empty() {
                 let groups: Vec<&str> = analysis
                     .functional_groups
