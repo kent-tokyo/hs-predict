@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] — 2026-05-25
+
+### Added
+
+#### SMILES structural feature engine (`src/smiles/detector.rs`, `src/smiles/chapter_map.rs`)
+
+- **`StructuralFeatures`** struct exposed via `SmilesClassification`:
+  - `carbon_count` — C atom count (Cl-aware; `Cl` not counted as carbon)
+  - `hydroxyl_count` — OH groups (distinguishes ether O and carbonyl O; counts `[OH]`)
+  - `carbonyl_count` — C=O groups (carbonyls)
+  - `has_ring` — ring closure digit present
+  - `has_aromatic_ring` — lowercase aromatic atom present
+  - `has_cc_double_bond` — C=C or branch `(=C)` present
+  - `has_halogen` — F, Cl, Br, or I present
+
+- **`HeadingHint.subheading: Option<String>`** — 6-digit HS code string when structurally determinable
+
+- **`map_to_subheading()`** replaces `map_to_heading()` as the public entry point; dispatches to
+  four per-group decision trees:
+
+  | Function | Resolves |
+  |---|---|
+  | `subheading_ketone` | 2914.11 acetone · 2914.12 MEK · 2914.13 MIBK · 2914.22 cyclohexanone · 2914.31 acetophenone |
+  | `subheading_alcohol` | **2207.10 ethanol** (Ch.22 special case) · 2905.31 EG · 2905.41 glycerol · 2905.xx other |
+  | `subheading_acid` | 2915.11 formic · 2915.21 acetic · 2915.50 propionic · 2916.11 acrylic · 2916.13 methacrylic · 2916.31 benzoic |
+  | `subheading_aldehyde` | 2912.11 benzaldehyde · 2912.12 acetaldehyde |
+
+- Confidence for 6-digit subheadings ranges **0.80–0.90** (above `confidence_threshold_direct = 0.85`
+  for acetone, acetic acid, cyclohexanone, acrylic acid, benzoic acid, ethanol → `RecommendedAction::Accept`)
+
+### Changed
+
+- `src/smiles/mod.rs`: `SmilesClassification` now includes `structural_features: StructuralFeatures`
+- `src/pipeline.rs` Priority 3: prefers `hint.subheading` (6-digit) over padded 4-digit heading;
+  uses `.map().or_else()` idiom (fixes `clippy::manual_map`)
+
+### Tests
+
+- 146 unit tests (was 120), 14 doctests — all passing, clippy clean
+
+---
+
 ## [0.5.0] — 2026-05-25
 
 ### Added

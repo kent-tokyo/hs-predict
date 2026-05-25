@@ -20,6 +20,7 @@
 - **Physical-form awareness** — same compound, different form = different HS code (e.g. NaOH solid → 2815.11, solution → 2815.12)
 - **148-entry static rule table** (133 compounds) — common industrial chemicals across Chapters 28, 29, 38, 72–81
 - **SMILES functional-group detection** *(v0.3)* — 20 functional groups, organic/inorganic classification, heading-level hint (≤ 0.70 confidence)
+- **SMILES structural engine** *(v0.5.1)* — carbon count, hydroxyl count, ring/aromaticity/C=C detection; resolves to 6-digit HS subheading for ketones (29.14.11–31), alcohols (29.05/22.07), carboxylic acids (29.15/29.16), and aldehydes (29.12); confidence up to 0.90
 - **Mixture GRI classification** *(v0.5)* — GRI 3a (same chapter), GRI 3b (essential character / dominant component > 50 % w/w), GRI 3c (last heading numerically); special-use routing for pharmaceuticals (Ch. 30), cosmetics (Ch. 33), food preparations (Ch. 21), agrochemicals (Ch. 38.08)
 - **Compliance risk flags** *(v0.5)* — `GrayZone` identifies Chapter 28/29/38 boundary cases; `RecommendedAction::PriorConsultation` signals when an advance ruling (事前教示) should be requested
 - **Batch processing** *(v0.5)* — `classify_batch()` and `classify_batch_with_llm()` for multi-product workflows
@@ -124,8 +125,10 @@ Input: ProductDescription
                         │ miss
                         ▼
  ┌──────────────────────────────────────────────────────────┐
- │  Priority 3: SMILES functional-group engine   (v0.3)     │
- │  20 functional groups → heading-level hint (≤ 0.70)      │
+ │  Priority 3: SMILES structural engine   (v0.5.1)          │
+ │  20 functional groups + structural features               │
+ │  → 6-digit subheading for ketones/acids/alcohols/ald.    │
+ │  → heading hint (≤ 0.70) for other organic groups        │
  └──────────────────────┬───────────────────────────────────┘
                         │ miss / low confidence
                         ▼
@@ -233,9 +236,33 @@ let results = pipeline.classify_batch_with_llm(&products).await;
 
 ---
 
-## SMILES functional-group detection (v0.3)
+## SMILES structural engine (v0.5.1)
 
-When a SMILES string is available (from the user or auto-filled by PubChem), the engine detects the following functional groups and maps them to a Chapter 29 heading hint:
+When a SMILES string is available (from the user or auto-filled by PubChem), the engine first detects structural features (carbon count, hydroxyl groups, ring topology, C=C bonds), then resolves to a **6-digit HS subheading** for common compound classes — or falls back to a heading-level hint for others.
+
+### 6-digit subheading resolution
+
+| Compound class | Example | SMILES | HS subheading | Confidence |
+|---|---|---|---|---|
+| Acetone (3C ketone) | Acetone | `CC(C)=O` | **291411** | 0.87 |
+| MEK (4C ketone) | Methyl ethyl ketone | `CCC(C)=O` | **291412** | 0.83 |
+| MIBK (6C acyclic ketone) | MIBK | `CC(=O)CC(C)C` | **291413** | 0.80 |
+| Cyclohexanone | Cyclohexanone | `O=C1CCCCC1` | **291422** | 0.85 |
+| Acetophenone | Acetophenone | `CC(=O)c1ccccc1` | **291431** | 0.82 |
+| Ethanol (2C monohydric) | Ethanol | `CCO` | **220710** | 0.85 |
+| Ethylene glycol (2C diol) | Ethylene glycol | `OCCO` | **290531** | 0.85 |
+| Glycerol (3C triol) | Glycerol | `OCC(O)CO` | **290541** | 0.85 |
+| Acetic acid (2C) | Acetic acid | `CC(=O)O` | **291521** | 0.90 |
+| Propionic acid (3C) | Propionic acid | `CCC(=O)O` | **291550** | 0.83 |
+| Acrylic acid (C=C) | Acrylic acid | `OC(=O)C=C` | **291611** | 0.87 |
+| Methacrylic acid | Methacrylic acid | `CC(=C)C(=O)O` | **291613** | 0.87 |
+| Benzoic acid (aromatic) | Benzoic acid | `OC(=O)c1ccccc1` | **291631** | 0.85 |
+| Benzaldehyde (aromatic) | Benzaldehyde | `O=Cc1ccccc1` | **291211** | 0.83 |
+| Acetaldehyde (2C) | Acetaldehyde | `CC=O` | **291212** | 0.83 |
+
+> **Note:** Ethanol routes to **Ch. 22** (undenatured ethyl alcohol ≥ 80% vol.), not Ch. 29 — consistent with WCO classification practice.
+
+### Heading-level hints (other functional groups)
 
 | Functional group | HS heading hint | Confidence |
 |---|---|---|
@@ -245,12 +272,8 @@ When a SMILES string is available (from the user or auto-filled by PubChem), the
 | Epoxide | 29.10 | 0.70 |
 | Sulphonic acid | 29.04 | 0.68 |
 | Amide | 29.24 | 0.67 |
-| Aldehyde | 29.12 | 0.67 |
-| Ketone | 29.14 | 0.67 |
-| Carboxylic acid | 29.15 | 0.60 |
 | Ester | 29.15 | 0.55 |
 | Phenol | 29.07 | 0.67 |
-| Alcohol | 29.05 | 0.60 |
 | Amine | 29.21 | 0.63 |
 | Organohalide | 29.03 | 0.65 |
 | Ether | 29.09 | 0.63 |
@@ -263,7 +286,12 @@ When a SMILES string is available (from the user or auto-filled by PubChem), the
 use hs_predict::smiles::classify_smiles;
 
 let r = classify_smiles("CC(C)=O").unwrap(); // acetone
-assert_eq!(r.heading_hint.heading, Some(2914)); // 29.14 ketone
+assert_eq!(r.heading_hint.heading, Some(2914));
+assert_eq!(r.heading_hint.subheading.as_deref(), Some("291411")); // 6-digit!
+assert!(r.heading_hint.confidence >= 0.85);
+
+let r = classify_smiles("CCO").unwrap(); // ethanol → Ch. 22
+assert_eq!(r.heading_hint.subheading.as_deref(), Some("220710"));
 ```
 
 ---
@@ -405,7 +433,7 @@ Q2: Is this a mixture?
 
 ```toml
 [dependencies]
-hs-predict = { version = "0.5", features = ["pubchem"] }
+hs-predict = { version = "0.5.1", features = ["pubchem"] }
 ```
 
 ---
@@ -441,8 +469,9 @@ hs-predict = { version = "0.5", features = ["pubchem"] }
 | 0.3.0 | ✅ Released | SMILES functional-group detection (20 groups, Priority 3) |
 | 0.4.0 | ✅ Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` + WASM |
 | 0.4.1 | ✅ Released | WASM companion crate + `Serialize` additions |
-| 0.5.0 | 🔜 Pending | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
-| 0.5.1 | 📋 Planned | npm publish · GitHub Actions CI · WASM tests |
+| 0.5.0 | ✅ Released | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
+| 0.5.1 | ✅ Released | SMILES structural engine — 6-digit subheading for ketones, alcohols, acids, aldehydes; confidence up to 0.90 |
+| 0.6.0 | 📋 Planned | npm publish · GitHub Actions CI · WASM tests |
 
 ---
 
