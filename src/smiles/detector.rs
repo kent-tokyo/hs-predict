@@ -412,6 +412,174 @@ pub fn detect_functional_groups(smiles: &str) -> Vec<FunctionalGroup> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Structural feature extraction
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Atom-count and connectivity properties extracted from a SMILES string.
+///
+/// These supplement functional-group detection and are used by
+/// [`crate::smiles::chapter_map::map_to_subheading`] to resolve
+/// 4-digit HS headings to 6-digit subheadings.
+///
+/// Analysis is heuristic and designed for PubChem canonical SMILES.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StructuralFeatures {
+    /// Total carbon atom count (uppercase C + aromatic c, excluding Cl).
+    pub carbon_count: u32,
+    /// Estimated hydroxyl (–OH) group count.
+    ///
+    /// For carboxylic acids this includes the acid –OH (one per –COOH).
+    /// Use `hydroxyl_count.saturating_sub(1)` when `CarboxylicAcid` is
+    /// in the detected functional groups to get the extra alcohol –OH count.
+    pub hydroxyl_count: u32,
+    /// Number of C=O (carbonyl) groups (ketone, aldehyde, ester, acid, etc.).
+    pub carbonyl_count: u32,
+    /// `true` when the SMILES contains a ring-closure digit outside brackets.
+    pub has_ring: bool,
+    /// `true` when lowercase aromatic-carbon atoms (`c`) are present.
+    pub has_aromatic_ring: bool,
+    /// `true` when a C=C aliphatic double bond is present.
+    pub has_cc_double_bond: bool,
+    /// `true` when a halogen substituent (F, Cl, Br, I) is present.
+    pub has_halogen: bool,
+}
+
+/// Extract structural features from a canonical SMILES string.
+///
+/// The analysis is approximate.  Use together with [`detect_functional_groups`]
+/// to narrow 4-digit HS headings down to 6-digit subheadings.
+pub fn detect_structural_features(smiles: &str) -> StructuralFeatures {
+    StructuralFeatures {
+        carbon_count:      count_carbons(smiles),
+        hydroxyl_count:    count_hydroxyls(smiles),
+        carbonyl_count:    smiles.matches("=O").count() as u32,
+        has_ring:          ring_present(smiles),
+        has_aromatic_ring: smiles.contains('c'),
+        has_cc_double_bond: cc_double_bond_present(smiles),
+        has_halogen: smiles.contains('F')
+            || smiles.contains("Cl")
+            || smiles.contains("Br")
+            || (smiles.contains('I') && !smiles.contains("In")),
+    }
+}
+
+/// Count carbon atoms in a SMILES string.
+/// Handles bracket atoms (`[13C]`, `[CH2]`) and skips `Cl` (chlorine).
+fn count_carbons(smiles: &str) -> u32 {
+    let mut count = 0u32;
+    let mut chars = smiles.chars().peekable();
+    let mut in_bracket = false;
+    let mut bracket_buf = String::new();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '[' => {
+                in_bracket = true;
+                bracket_buf.clear();
+            }
+            ']' if in_bracket => {
+                in_bracket = false;
+                // Strip leading isotope digits then inspect the atom symbol.
+                let sym = bracket_buf.trim_start_matches(|c: char| c.is_ascii_digit());
+                if sym.starts_with('C') || sym.starts_with('c') {
+                    count += 1;
+                }
+            }
+            c if in_bracket => bracket_buf.push(c),
+            'C' => {
+                if chars.peek() == Some(&'l') {
+                    chars.next(); // Cl = chlorine, not carbon
+                } else {
+                    count += 1;
+                }
+            }
+            'c' => count += 1,
+            _ => {}
+        }
+    }
+    count
+}
+
+/// Estimate the number of hydroxyl (–OH) groups in a SMILES string.
+///
+/// Counts aliphatic `O` atoms that are not carbonyl oxygens (`=O`) and not
+/// ether oxygens (flanked by carbon on both sides).  Also recognises `[OH]`.
+fn count_hydroxyls(smiles: &str) -> u32 {
+    let chars: Vec<char> = smiles.chars().collect();
+    let n = chars.len();
+    let mut count = 0u32;
+    let mut i = 0;
+
+    while i < n {
+        // Bracket atom: read until ']'
+        if chars[i] == '[' {
+            i += 1;
+            let mut buf = String::new();
+            while i < n && chars[i] != ']' {
+                buf.push(chars[i]);
+                i += 1;
+            }
+            i += 1; // skip ']'
+            let sym = buf.trim_start_matches(|c: char| c.is_ascii_digit());
+            if sym.starts_with("OH") {
+                count += 1;
+            }
+            continue;
+        }
+
+        if chars[i] == 'O' {
+            let prev = if i > 0 { chars[i - 1] } else { '\0' };
+            let next = if i + 1 < n { chars[i + 1] } else { '\0' };
+
+            // Skip carbonyl oxygen (=O)
+            if prev == '=' {
+                i += 1;
+                continue;
+            }
+
+            // Skip ether oxygen: carbon-like on both sides
+            let prev_is_c = matches!(prev, 'C' | 'c' | ')');
+            let next_is_c = matches!(next, 'C' | 'c' | '(');
+            if prev_is_c && next_is_c {
+                i += 1;
+                continue;
+            }
+
+            count += 1;
+        }
+
+        i += 1;
+    }
+    count
+}
+
+/// Return `true` when the SMILES contains a ring-closure digit outside brackets.
+fn ring_present(smiles: &str) -> bool {
+    let mut in_bracket = false;
+    for ch in smiles.chars() {
+        match ch {
+            '[' => in_bracket = true,
+            ']' => in_bracket = false,
+            c if c.is_ascii_digit() && !in_bracket => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Return `true` when a C=C aliphatic double bond is present.
+fn cc_double_bond_present(smiles: &str) -> bool {
+    // Direct C=C forms
+    smiles.contains("C=C")
+        || smiles.contains("c=c")
+        || smiles.contains("C=c")
+        || smiles.contains("c=C")
+        // Branch form: C(=C)... e.g. methacrylic acid CC(=C)C(=O)O
+        || smiles.contains("(=C)")
+        || smiles.contains("(=c)")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -586,5 +754,109 @@ mod tests {
     fn trimethyl_phosphate_detected() {
         // COP(=O)(OC)OC
         assert!(has("COP(=O)(OC)OC", FunctionalGroup::Phosphate));
+    }
+
+    // ── StructuralFeatures ────────────────────────────────────────────────
+
+    fn sf(smiles: &str) -> StructuralFeatures {
+        detect_structural_features(smiles)
+    }
+
+    #[test]
+    fn acetone_carbon_count_3() {
+        // CC(C)=O — 3 carbons, no ring, no aromatic, no C=C
+        let f = sf("CC(C)=O");
+        assert_eq!(f.carbon_count, 3);
+        assert!(!f.has_ring);
+        assert!(!f.has_aromatic_ring);
+        assert!(!f.has_cc_double_bond);
+        assert_eq!(f.carbonyl_count, 1);
+    }
+
+    #[test]
+    fn ethanol_hydroxyl_count_1() {
+        // CCO — 2 carbons, 1 OH
+        let f = sf("CCO");
+        assert_eq!(f.carbon_count, 2);
+        assert_eq!(f.hydroxyl_count, 1);
+    }
+
+    #[test]
+    fn ethylene_glycol_hydroxyl_count_2() {
+        // OCCO — 2 carbons, 2 OH
+        let f = sf("OCCO");
+        assert_eq!(f.carbon_count, 2);
+        assert_eq!(f.hydroxyl_count, 2);
+    }
+
+    #[test]
+    fn glycerol_hydroxyl_count_3() {
+        // OCC(O)CO — 3 carbons, 3 OH
+        let f = sf("OCC(O)CO");
+        assert_eq!(f.carbon_count, 3);
+        assert_eq!(f.hydroxyl_count, 3);
+    }
+
+    #[test]
+    fn ether_oxygen_not_counted_as_oh() {
+        // COC — dimethyl ether, 0 OH
+        let f = sf("COC");
+        assert_eq!(f.hydroxyl_count, 0);
+    }
+
+    #[test]
+    fn acetic_acid_one_oh() {
+        // CC(=O)O — acetic acid: 1 carbonyl + 1 acid OH
+        let f = sf("CC(=O)O");
+        assert_eq!(f.carbon_count, 2);
+        assert_eq!(f.hydroxyl_count, 1);
+        assert_eq!(f.carbonyl_count, 1);
+    }
+
+    #[test]
+    fn acrylic_acid_has_cc_double_bond() {
+        // C=CC(=O)O — acrylic acid: C=C present
+        let f = sf("C=CC(=O)O");
+        assert!(f.has_cc_double_bond);
+        assert_eq!(f.carbon_count, 3);
+    }
+
+    #[test]
+    fn methacrylic_acid_has_cc_double_bond() {
+        // CC(=C)C(=O)O — methacrylic acid: branch C=C
+        let f = sf("CC(=C)C(=O)O");
+        assert!(f.has_cc_double_bond);
+        assert_eq!(f.carbon_count, 4);
+    }
+
+    #[test]
+    fn benzene_has_aromatic_ring() {
+        let f = sf("c1ccccc1");
+        assert!(f.has_ring);
+        assert!(f.has_aromatic_ring);
+        assert_eq!(f.carbon_count, 6);
+    }
+
+    #[test]
+    fn cyclohexanone_is_ring_no_aromatic() {
+        // O=C1CCCCC1 — cyclohexanone: 6C, ring, no aromatic
+        let f = sf("O=C1CCCCC1");
+        assert!(f.has_ring);
+        assert!(!f.has_aromatic_ring);
+        assert_eq!(f.carbon_count, 6);
+    }
+
+    #[test]
+    fn chlorobenzene_has_halogen() {
+        let f = sf("Clc1ccccc1");
+        assert!(f.has_halogen);
+        assert_eq!(f.carbon_count, 6);
+    }
+
+    #[test]
+    fn methanol_carbon_count_1() {
+        let f = sf("CO");
+        assert_eq!(f.carbon_count, 1);
+        assert_eq!(f.hydroxyl_count, 1);
     }
 }

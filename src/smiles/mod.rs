@@ -25,7 +25,7 @@ pub mod chapter_map;
 pub mod detector;
 
 pub use chapter_map::HeadingHint;
-pub use detector::FunctionalGroup;
+pub use detector::{FunctionalGroup, StructuralFeatures};
 
 use crate::types::OrganicInorganic;
 
@@ -43,7 +43,11 @@ pub struct SmilesClassification {
     /// May be empty for simple hydrocarbons (alkanes, alkenes, etc.).
     pub functional_groups: Vec<FunctionalGroup>,
 
-    /// Best-guess HS chapter / heading based on detected groups.
+    /// Structural atom-count and connectivity properties.
+    pub structural_features: StructuralFeatures,
+
+    /// Best-guess HS chapter / heading (and 6-digit subheading when
+    /// determinable) based on detected groups and structural features.
     pub heading_hint: HeadingHint,
 }
 
@@ -92,11 +96,17 @@ pub fn classify_smiles(smiles: &str) -> Option<SmilesClassification> {
 
     let organic_class = detector::classify_organic(smiles);
     let functional_groups = detector::detect_functional_groups(smiles);
-    let heading_hint = chapter_map::map_to_heading(&functional_groups, &organic_class);
+    let structural_features = detector::detect_structural_features(smiles);
+    let heading_hint = chapter_map::map_to_subheading(
+        &functional_groups,
+        &organic_class,
+        &structural_features,
+    );
 
     Some(SmilesClassification {
         organic_class,
         functional_groups,
+        structural_features,
         heading_hint,
     })
 }
@@ -150,9 +160,12 @@ mod tests {
 
     #[test]
     fn ethanol_heading() {
-        // CCO — ethanol
+        // CCO — ethanol: structural engine routes to HS 22.07 (ethyl alcohol),
+        // not 29.05.  This is the correct WCO classification.
         let r = classify_smiles("CCO").unwrap();
-        assert_eq!(r.heading_hint.heading, Some(2905));
+        assert_eq!(r.heading_hint.chapter, 22);
+        assert_eq!(r.heading_hint.heading, Some(2207));
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("220710"));
         assert!(r.functional_groups.contains(&FunctionalGroup::Alcohol));
     }
 

@@ -291,15 +291,22 @@ impl HsPipeline {
         if let Some(ref smiles) = product.identifier.smiles {
             if let Some(classification) = crate::smiles::classify_smiles(smiles) {
                 let hint = &classification.heading_hint;
-                // Only emit a result when we have at least a 4-digit heading
-                // and confidence meets the LLM-required threshold.
-                if let Some(heading) = hint.heading {
+
+                // Prefer the 6-digit subheading when the structural engine
+                // resolved it; otherwise pad the 4-digit heading with "00".
+                let maybe_code: Option<(String, bool)> = hint
+                    .subheading
+                    .as_ref()
+                    .map(|sub| (sub.clone(), true))
+                    .or_else(|| {
+                        hint.heading
+                            .map(|heading| (format!("{:04}00", heading), false))
+                    });
+
+                if let Some((hs_code, is_6digit)) = maybe_code {
                     if hint.confidence >= self.config.confidence_threshold_llm_required {
-                        // Pad to 6 digits with "00" sub-heading (best guess)
-                        let hs_code = format!("{:04}00", heading);
                         let jp = find_jp_rule(&hs_code);
 
-                        // Detect gray zone using the pre-computed organic class.
                         let gray_zone = self.detect_gray_zone(
                             product,
                             &hs_code,
@@ -309,12 +316,21 @@ impl HsPipeline {
                             self.recommended_action_with_gz(hint.confidence, gray_zone.as_ref());
 
                         let mut notes = self.build_notes(product);
-                        notes.push(
-                            "Heading is derived from SMILES functional-group analysis. \
-                             Sub-heading (last two digits) is a placeholder — \
-                             verify the exact 6-digit code with the product specification."
-                                .to_string(),
-                        );
+                        if is_6digit {
+                            notes.push(
+                                "6-digit subheading resolved from SMILES structural analysis \
+                                 (carbon count, ring type, functional group). \
+                                 Verify with product specification before declaration."
+                                    .to_string(),
+                            );
+                        } else {
+                            notes.push(
+                                "Heading derived from SMILES functional-group analysis. \
+                                 Sub-heading (last two digits) is a placeholder — \
+                                 verify the exact 6-digit code with the product specification."
+                                    .to_string(),
+                            );
+                        }
 
                         let matched_rules: Vec<String> = classification
                             .functional_groups
@@ -595,10 +611,13 @@ mod tests {
 
     /// A product with no static rule and a SMILES → triggers LLM path.
     fn unknown_organic() -> ProductDescription {
+        // Ethyl propanoate (ester): SMILES engine gives heading 2915 at conf 0.55
+        // (VerifyWithLlm) because esters don't have a 6-digit structural decision
+        // tree yet.  No CAS → Priority 2 miss.  Suitable for testing LLM paths.
         ProductDescription {
             identifier: SubstanceIdentifier {
                 cas: None,
-                smiles: Some("CC(O)=O".to_string()), // acetic acid SMILES, unknown CAS
+                smiles: Some("CCC(=O)OCC".to_string()),
                 iupac_name: None,
                 inchi: None,
                 inchi_key: None,
