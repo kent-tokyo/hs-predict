@@ -12,7 +12,7 @@ panic         = "abort"
 
 [package]
 name = "hs-predict"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.75"
 description = "HS code prediction for chemical products — Akinator-style interactive classification with rule-based and LLM hybrid engine"

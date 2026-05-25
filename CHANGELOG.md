@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — v0.5.0
+## [0.5.0] — 2026-05-25
 
 ### Added
 
@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **GRI 3c** — Fallback: last heading numerically; sets `gray_zone` and
     `recommended_action = PriorConsultation`.
 - `HsPipeline::classify()` now routes mixture products (`is_mixture() == true`) through
-  the mixture classifier automatically (Priority 0, before all existing priorities).
+  the mixture classifier automatically (**Priority 0**, before all existing priorities).
+- Closure-based design avoids circular crate dependency: `classify_mixture` accepts
+  `classify_component: impl Fn(&ProductDescription) -> Result<HsPrediction>`.
 
 #### Compliance risk flags (`src/types.rs`)
 
@@ -31,8 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MixtureEssentialCharacterUnclear` — GRI 3c applied; no dominant component
 - **`HsPrediction::gray_zone: Option<GrayZone>`** — `Some` when a boundary risk is detected.
 - **`RecommendedAction::PriorConsultation`** — new variant recommending a formal advance
-  ruling (事前教示) from customs authorities. Applied when `gray_zone` is set and
-  confidence is below the `Accept` threshold.
+  ruling (事前教示) from customs authorities. Applied when a `GrayZone` boundary is
+  detected or when GRI 3c is used.
 
 #### Chapter 38 rules (`src/rules/chapter38.rs`)
 
@@ -42,32 +44,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Static rule table expansion (`src/rules/static_table.rs`)
 
-- Expanded from **98 → ~155 chemicals** with ECICS-validated codes:
+- Expanded from **98 → 148 entries / 133 distinct compounds** (WCO-validated codes):
   - **Chapter 28** additions: H₂, N₂, O₂, CO₂, SO₂, NH₄Cl, MgCl₂, AlCl₃, FeCl₂,
-    NiCl₂, CuCl₂, NaF, Al(OH)₃, K₂SO₄, Na₂S₂O₃, MgSO₄, NaNO₂, Ca(NO₃)₂,
-    Na₂Cr₂O₇, K₂Cr₂O₇, sodium metabisulphite.
+    NiCl₂, CuCl₂, NaF, Al(OH)₃, K₂SO₄, Na₂S₂O₃, MgSO₄, NaNO₂, Ca(NO₃)₂, KNO₃,
+    NaNO₃, Na₂Cr₂O₇, K₂Cr₂O₇, KMnO₄, sodium metabisulphite, and more.
   - **Chapter 29** additions: styrene, 1,3-butadiene, vinyl chloride, MEK, n-BuOAc,
     maleic anhydride, terephthalic acid, adipic acid, propylene oxide, glycerol, DEG,
     cyclohexanone, acrylic acid, MMA, acrylonitrile, ethylenediamine, HMDA,
     neopentyl glycol, TMP, pentaerythritol, TDI, MDI, n-butyl acrylate, methyl acrylate,
     propionic acid, butyric acid, succinic acid.
   - **Chapter 38** addition: activated carbon (380210).
-- Corresponding Japan statistical item codes added to `jp_table.rs` (2026 tariff schedule).
+- Corresponding Japan 統計品目番号 added to `jp_table.rs` (2026 tariff schedule).
 
-#### Batch classification
+#### Batch classification (`src/pipeline.rs`)
 
 - `HsPipeline::classify_batch(&[ProductDescription]) -> Vec<Result<HsPrediction>>`
-  — synchronous batch processing.
+  — synchronous batch for multi-product workflows.
 - `HsPipeline::classify_batch_with_llm(&[ProductDescription]) -> Vec<Result<HsPrediction>>`
-  — async, concurrent LLM batch processing (`llm` feature).
+  — async concurrent batch with LLM fallback (`llm` feature).
 
 ### Changed
 
-- `HsPipeline::classify()` now automatically dispatches mixtures to the GRI classifier.
-- `recommended_action()` logic updated: gray-zone presence upgrades `VerifyWithLlm` →
-  `PriorConsultation`.
-- Gray-zone detection added for static rule matches (industrial-use organics) and
-  SMILES engine results (organometallics).
+- `HsPipeline::classify()` dispatches mixtures to the GRI classifier before all other priorities.
+- `recommended_action_with_gz()` replaces the old `recommended_action()`: gray-zone
+  presence upgrades `VerifyWithLlm` → `PriorConsultation`.
+- `detect_gray_zone()` unified: previously two separate helpers (SMILES / static-rule)
+  merged into one function accepting `organic_class: Option<&OrganicInorganic>`.
+- `HsPipeline::with_mapping()` now validates that the supplied HS code is exactly
+  6 ASCII digits, returning `HsPredictError::ValidationFailed` otherwise.
+- `build_prediction()` (9-argument function) replaced by **`PredictionBuilder`** struct
+  for named-field ergonomics; JP tariff lookup centralised inside `build()`.
+
+### Fixed
+
+#### Wrong HS codes in static rule table (bug-check audit)
+
+Six codes were incorrect and have been corrected:
+
+| CAS | Substance | Wrong | Correct | Reason |
+|---|---|---|---|---|
+| 7757-79-1 | Potassium nitrate (KNO₃) | `283410` (nitrites!) | `283421` | 2834.10 = nitrites; 2834.21 = potassium nitrates |
+| 7631-99-4 | Sodium nitrate (NaNO₃) | `283421` (potassium!) | `283429` | 2834.21 is only "of potassium" |
+| 7722-64-7 | Potassium permanganate | `284130` (Na₂Cr₂O₇!) | `284161` | 2841.30 = sodium dichromate |
+| 10588-01-9 | Sodium dichromate | `281921` (non-existent!) | `284130` | 28.19 has only .10/.90 |
+| 7778-50-9 | Potassium dichromate | `281929` (non-existent!) | `284150` | Heading 28.41 |
+| 7664-41-7 / 7697-37-2 | Ammonia / Nitric acid | `281400` / `280800` (4-digit!) | `281410` / `280890` | 6-digit invariant violated |
+
+- Ethanol `heading_description` typo `"(methanol)"` → `"(ethyl alcohol)"`.
+- `jp_table.rs`: removed non-existent `281921`/`281929` entries; corrected
+  dichromate and permanganate Japanese descriptions.
+
+#### SMILES detector — aldehyde false-positive as alcohol (`src/smiles/detector.rs`)
+
+- `smiles.ends_with("O")` was matching acetaldehyde (`CC=O`) as both Aldehyde and Alcohol.
+  Fixed by checking `has_aldehyde` before the alcohol detection block.
+
+#### Security hardening
+
+- **`src/types.rs`** — `chapter()` and `heading()` used byte-slicing (`&s[..2]`/`&s[..4]`)
+  which panics on multi-byte UTF-8 boundaries. Replaced with `.get(..n).unwrap_or(s)`.
+- **`src/types.rs`** — `display_name()` SMILES short preview used `&s[..20]` (byte-slice).
+  Replaced with `s.chars().take(20).collect::<String>()`.
+- **`src/smiles/mod.rs`** — Added `MAX_SMILES_LEN = 4096` guard; inputs exceeding this
+  return `None` immediately, preventing DoS via O(n²) pattern matching on large strings.
+- **`src/session/mod.rs`** — `start()` called `.expect()` on a fallible operation in a
+  public API. Replaced with `unwrap_or_else` returning a safe fallback question.
+- **`src/llm/prompt.rs`** — Added `sanitize_context()`: strips ASCII control characters
+  and caps `additional_context` at 500 chars to prevent prompt injection.
+- **`src/pubchem/mod.rs`** — Added `PubChemClient::try_build() -> Result<Self>` to
+  surface construction errors without panicking.
+- **`src/mixture.rs`** — GRI 3a confidence sort used `partial_cmp().unwrap()` which
+  panics on NaN. Replaced with `.unwrap_or(Ordering::Equal)`.
+
+### Tests
+
+- **120 unit tests** (up from 93), **14 doctests** — all pass; `cargo clippy -D warnings` clean.
+- New regression tests:
+  - `acetaldehyde_not_classified_as_alcohol` (smiles/detector)
+  - `gri3a_nan_confidence_does_not_panic` (mixture)
+  - `all_unknown_weights_falls_to_gri3c` (mixture)
+  - `single_component_mixture_classifies_via_gri3a` (mixture)
+  - `gri3b_exactly_50pct_is_not_dominant` (mixture)
 - Fixed 4 pre-existing `clippy` warnings (`single_match`, `collapsible_if`,
   `format_in_format_args`) that were blocking `cargo clippy -D warnings`.
 
@@ -292,3 +349,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.2.0 | ✅ 2026-05 | PubChem API integration (CAS / IUPAC name / SMILES / InChI lookup) |
 | 0.3.0 | ✅ 2026-05 | SMILES functional-group detection (20 groups) + pipeline Priority 3 |
 | 0.4.0 | ✅ 2026-05 | LLM trait hook + PromptBuilder (EN/JA) + MockLlmClassifier |
+| 0.4.1 | ✅ 2026-05 | WASM companion crate (`hs-predict-wasm`) + Serialize additions |
+| 0.5.0 | ✅ 2026-05 | Mixture GRI 3a/3b/3c · GrayZone · PriorConsultation · 133 compounds · batch · security |
+| 0.5.1 | 📋 planned | npm publish · GitHub Actions CI · WASM tests |
