@@ -1,5 +1,7 @@
 # hs-predict
 
+[English](README.md) | [日本語](README_ja.md)
+
 [![Crates.io](https://img.shields.io/crates/v/hs-predict.svg)](https://crates.io/crates/hs-predict)
 [![docs.rs](https://docs.rs/hs-predict/badge.svg)](https://docs.rs/hs-predict)
 [![CI](https://github.com/kent-tokyo/hs-predict/actions/workflows/ci.yml/badge.svg)](https://github.com/kent-tokyo/hs-predict/actions)
