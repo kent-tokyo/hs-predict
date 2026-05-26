@@ -1,10 +1,11 @@
 [package]
 name = "hs-predict-wasm"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "WebAssembly bindings for hs-predict — HS code prediction for chemical products"
 repository = "https://github.com/kent-tokyo/hs-predict"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
