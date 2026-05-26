@@ -457,11 +457,11 @@ Q2: 混合物ですか？
 
 | フォーマット | 例 | 自動検出 |
 |---|---|---|
-| CAS番号 | `1310-73-2` | ✅ |
-| IUPAC系統名 | `sodium hydroxide` | ✅（フォールバック） |
-| SMILES | `[Na+].[OH-]` | ✅ |
-| InChI | `InChI=1S/Na.H2O/h;1H/q+1;/p-1` | ✅ |
-| InChIKey | `HEMHJVSKTPXQMS-UHFFFAOYSA-M` | ✅ |
+| CAS番号 | `1310-73-2` | yes |
+| IUPAC系統名 | `sodium hydroxide` | yes（フォールバック） |
+| SMILES | `[Na+].[OH-]` | yes |
+| InChI | `InChI=1S/Na.H2O/h;1H/q+1;/p-1` | yes |
+| InChIKey | `HEMHJVSKTPXQMS-UHFFFAOYSA-M` | yes |
 
 > **注意**: テキスト入力として受け付けるのは **IUPAC系統名のみ** です。俗称・商品名（例：「苛性ソーダ」「カセイソーダ」）は対応していません。
 
@@ -509,15 +509,15 @@ hs-predict = { version = "0.5.2", features = ["pubchem"] }
 
 | バージョン | ステータス | 内容 |
 |---|---|---|
-| 0.1.0 | ✅ リリース済み | コアルールエンジン + Akinatorセッション + 統計品目番号 |
-| 0.2.0 | ✅ リリース済み | PubChem API連携 |
-| 0.3.0 | ✅ リリース済み | SMILES官能基検出（20種） + Pipeline Priority 3 |
-| 0.4.0 | ✅ リリース済み | LLM trait hook + PromptBuilder(EN/JA) + MockLlmClassifier + WASM対応 |
-| 0.4.1 | ✅ リリース済み | WAMSコンパニオンクレート + Serialize追加 |
-| 0.5.0 | ✅ リリース済み | 混合物GRI分類 · GrayZone · PriorConsultation · 133化合物 · バッチ処理 · セキュリティ強化 |
-| 0.5.1 | ✅ リリース済み | SMILES構造特徴エンジン — ケトン・アルコール・カルボン酸・アルデヒドを6桁まで解決（信頼度最大0.90） |
-| 0.5.2 | ✅ リリース済み | 炭化水素エンジン（HS 2901/2902）・塩素化炭化水素エンジン（HS 2903）— イソプレン・シクロヘキサン・DCMなど13化合物追加 |
-| 0.6.0 | 📋 計画中 | npm公開 · GitHub Actions CI · WASMテスト |
+| 0.1.0 | Released | コアルールエンジン + Akinatorセッション + 統計品目番号 |
+| 0.2.0 | Released | PubChem API連携 |
+| 0.3.0 | Released | SMILES官能基検出（20種） + Pipeline Priority 3 |
+| 0.4.0 | Released | LLM trait hook + PromptBuilder(EN/JA) + MockLlmClassifier + WASM対応 |
+| 0.4.1 | Released | WAMSコンパニオンクレート + Serialize追加 |
+| 0.5.0 | Released | 混合物GRI分類 · GrayZone · PriorConsultation · 133化合物 · バッチ処理 · セキュリティ強化 |
+| 0.5.1 | Released | SMILES構造特徴エンジン — ケトン・アルコール・カルボン酸・アルデヒドを6桁まで解決（信頼度最大0.90） |
+| 0.5.2 | Released | 炭化水素エンジン（HS 2901/2902）・塩素化炭化水素エンジン（HS 2903）— イソプレン・シクロヘキサン・DCMなど13化合物追加 |
+| 0.6.0 | Planned | npm公開 · GitHub Actions CI · WASMテスト |
 
 ---
 

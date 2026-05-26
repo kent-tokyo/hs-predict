@@ -413,11 +413,11 @@ Q2: Is this a mixture?
 
 | Format | Example | Auto-detected |
 |---|---|---|
-| CAS number | `1310-73-2` | ✅ |
-| IUPAC systematic name | `sodium hydroxide` | ✅ (fallback) |
-| SMILES | `[Na+].[OH-]` | ✅ |
-| InChI | `InChI=1S/Na.H2O/h;1H/q+1;/p-1` | ✅ |
-| InChIKey | `HEMHJVSKTPXQMS-UHFFFAOYSA-M` | ✅ |
+| CAS number | `1310-73-2` | yes |
+| IUPAC systematic name | `sodium hydroxide` | yes (fallback) |
+| SMILES | `[Na+].[OH-]` | yes |
+| InChI | `InChI=1S/Na.H2O/h;1H/q+1;/p-1` | yes |
+| InChIKey | `HEMHJVSKTPXQMS-UHFFFAOYSA-M` | yes |
 
 > Only IUPAC systematic names are accepted as text input. Trade names and common aliases (e.g. "caustic soda") are not supported — they cannot be reliably resolved.
 
@@ -465,15 +465,15 @@ hs-predict = { version = "0.5.2", features = ["pubchem"] }
 
 | Version | Status | Description |
 |---|---|---|
-| 0.1.0 | ✅ Released | Core rule engine + Akinator session + Japan tariff codes |
-| 0.2.0 | ✅ Released | PubChem API integration |
-| 0.3.0 | ✅ Released | SMILES functional-group detection (20 groups, Priority 3) |
-| 0.4.0 | ✅ Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` + WASM |
-| 0.4.1 | ✅ Released | WASM companion crate + `Serialize` additions |
-| 0.5.0 | ✅ Released | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
-| 0.5.1 | ✅ Released | SMILES structural engine — 6-digit subheading for ketones, alcohols, acids, aldehydes; confidence up to 0.90 |
-| 0.5.2 | ✅ Released | Hydrocarbon engine (HS 2901/2902) + chloroalkane engine (HS 2903) — isoprene, cyclohexane, DCM and 13 more CAS entries |
-| 0.6.0 | 📋 Planned | npm publish · GitHub Actions CI · WASM tests |
+| 0.1.0 | Released | Core rule engine + Akinator session + Japan tariff codes |
+| 0.2.0 | Released | PubChem API integration |
+| 0.3.0 | Released | SMILES functional-group detection (20 groups, Priority 3) |
+| 0.4.0 | Released | `LlmClassifier` trait hook + `PromptBuilder` (EN/JA) + `MockLlmClassifier` + WASM |
+| 0.4.1 | Released | WASM companion crate + `Serialize` additions |
+| 0.5.0 | Released | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
+| 0.5.1 | Released | SMILES structural engine — 6-digit subheading for ketones, alcohols, acids, aldehydes; confidence up to 0.90 |
+| 0.5.2 | Released | Hydrocarbon engine (HS 2901/2902) + chloroalkane engine (HS 2903) — isoprene, cyclohexane, DCM and 13 more CAS entries |
+| 0.6.0 | Planned | npm publish · GitHub Actions CI · WASM tests |
 
 ---
 
