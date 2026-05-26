@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.2] — 2026-05-26
+
+### Added
+
+#### Hydrocarbon subheading engine (HS 2901 / 2902)
+
+- `StructuralFeatures` gains 5 new fields: `cc_double_bond_count`, `has_triple_bond`,
+  `chlorine_count`, `is_pure_hydrocarbon`, `is_chloro_hydrocarbon`.
+- New `subheading_hydrocarbon()` — resolves pure hydrocarbons (no heteroatoms) to 6-digit:
+  - Acyclic: ethylene 290121 · propylene 290122 · butylene 290123
+  - **Isoprene / buta-1,3-diene → 290124** (key new compound)
+  - Cycloalkane C6 → **290211 (cyclohexane)**
+  - Benzene 290220 · toluene 290230 · styrene 290250 · cumene 290270
+  - Saturated alkane → 290110
+- New `subheading_chloroalkane()` — resolves simple chlorinated hydrocarbons to 6-digit:
+  - **Dichloromethane (C1Cl2) → 290312**
+  - Chloroform (C1Cl3) → 290313 · CCl4 (C1Cl4) → 290314
+  - Chloromethane / chloroethane → 290311
+  - 1,2-Dichloroethane (C2Cl2, most likely isomer) → 290315
+
+#### Static rule table additions (13 new CAS entries)
+
+Isoprene, ethylene, propylene, 1-butene, cyclohexane, toluene, styrene,
+ethylbenzene, cumene, dichloromethane, chloroform, carbon tetrachloride,
+1,2-dichloroethane — all at confidence 0.97.
+
+#### JP tariff table additions (15 new entries)
+
+290121–290123, 290129, 290219, 290241–290244, 290250, 290260, 290270,
+290290, 290311, 290315, 290319.
+
+### Tests
+
+- 164 unit tests (was 146), 14 doctests — all passing, clippy clean.
+
+---
+
 ## [0.5.1] — 2026-05-25
 
 ### Added

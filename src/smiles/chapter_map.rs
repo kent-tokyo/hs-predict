@@ -262,6 +262,14 @@ pub fn map_to_subheading(
         return map_to_heading(groups, organic_class);
     }
 
+    // ── v0.5.2: pure hydrocarbons and simple chloroalkanes ───────────────
+    if feat.is_pure_hydrocarbon {
+        return subheading_hydrocarbon(feat);
+    }
+    if feat.is_chloro_hydrocarbon && !feat.has_ring && !feat.has_cc_double_bond {
+        return subheading_chloroalkane(feat);
+    }
+
     // ── Ketones (HS 29.14) ────────────────────────────────────────────────
     if groups.contains(&FunctionalGroup::Ketone) {
         return subheading_ketone(feat);
@@ -469,6 +477,95 @@ fn subheading_aldehyde(f: &StructuralFeatures) -> HeadingHint {
     }
 }
 
+/// Resolve a pure hydrocarbon (no heteroatoms) to a 6-digit HS subheading.
+/// HS 2901 = acyclic hydrocarbons; HS 2902 = cyclic hydrocarbons.
+fn subheading_hydrocarbon(f: &StructuralFeatures) -> HeadingHint {
+    if f.has_aromatic_ring {
+        // HS 2902 — cyclic aromatic hydrocarbons
+        let (sub, rationale, conf) = match (f.carbon_count, f.cc_double_bond_count) {
+            (6, _) => ("290220", "benzene", 0.85_f32),
+            (7, _) => ("290230", "toluene", 0.82_f32),
+            (8, n) if n >= 1 => ("290250", "styrene", 0.82_f32),
+            (8, _) => ("290244", "xylene (isomer undetermined)", 0.65_f32),
+            (9, _) => ("290270", "cumene (isopropylbenzene)", 0.75_f32),
+            _      => ("290290", "other aromatic hydrocarbon", 0.60_f32),
+        };
+        return HeadingHint {
+            chapter: 29,
+            heading: Some(2902),
+            subheading: Some(sub.to_string()),
+            rationale,
+            confidence: conf,
+        };
+    }
+
+    if f.has_ring {
+        // HS 2902 — cyclic non-aromatic (cycloalkanes/cycloalkenes)
+        let (sub, rationale, conf) = match f.carbon_count {
+            6 => ("290211", "cyclohexane", 0.85_f32),
+            _ => ("290219", "other cycloalkane", 0.65_f32),
+        };
+        return HeadingHint {
+            chapter: 29,
+            heading: Some(2902),
+            subheading: Some(sub.to_string()),
+            rationale,
+            confidence: conf,
+        };
+    }
+
+    // HS 2901 — acyclic hydrocarbons
+    if f.has_triple_bond {
+        return HeadingHint {
+            chapter: 29,
+            heading: Some(2901),
+            subheading: Some("290129".to_string()),
+            rationale: "alkyne (acyclic unsaturated)",
+            confidence: 0.65,
+        };
+    }
+
+    let (sub, rationale, conf) = match (f.cc_double_bond_count, f.carbon_count) {
+        (0, _) => ("290110", "saturated acyclic hydrocarbon (alkane)", 0.72_f32),
+        (1, 2) => ("290121", "ethylene", 0.90_f32),
+        (1, 3) => ("290122", "propylene", 0.88_f32),
+        (1, 4) => ("290123", "butylene", 0.85_f32),
+        (1, _) => ("290129", "other unsaturated acyclic hydrocarbon", 0.70_f32),
+        (n, 4) if n >= 2 => ("290124", "buta-1,3-diene", 0.88_f32),
+        (n, 5) if n >= 2 => ("290124", "isoprene (2-methylbuta-1,3-diene)", 0.87_f32),
+        _      => ("290129", "other diene or polyene", 0.68_f32),
+    };
+    HeadingHint {
+        chapter: 29,
+        heading: Some(2901),
+        subheading: Some(sub.to_string()),
+        rationale,
+        confidence: conf,
+    }
+}
+
+/// Resolve a simple chlorinated hydrocarbon (C + H + Cl only, saturated,
+/// acyclic) to a 6-digit HS subheading within 2903.
+fn subheading_chloroalkane(f: &StructuralFeatures) -> HeadingHint {
+    let (sub, rationale, conf) = match (f.carbon_count, f.chlorine_count) {
+        (1, 1) => ("290311", "chloromethane (methyl chloride)", 0.85_f32),
+        (1, 2) => ("290312", "dichloromethane (methylene chloride)", 0.90_f32),
+        (1, 3) => ("290313", "chloroform (trichloromethane)", 0.90_f32),
+        (1, 4) => ("290314", "carbon tetrachloride", 0.90_f32),
+        (2, 1) => ("290311", "chloroethane (ethyl chloride)", 0.82_f32),
+        // 1,2-DCE vs 1,1-DCE cannot be distinguished by substring matching
+        (2, 2) => ("290315", "ethylene dichloride (1,2-DCE, most likely isomer)", 0.72_f32),
+        _      => ("290319", "other chlorinated hydrocarbon", 0.60_f32),
+    };
+    HeadingHint {
+        chapter: 29,
+        heading: Some(2903),
+        subheading: Some(sub.to_string()),
+        rationale,
+        confidence: conf,
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -476,6 +573,7 @@ fn subheading_aldehyde(f: &StructuralFeatures) -> HeadingHint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::smiles::classify_smiles;
 
     fn hint(groups: &[FunctionalGroup]) -> HeadingHint {
         map_to_heading(groups, &OrganicInorganic::Organic)
@@ -569,6 +667,11 @@ mod tests {
             has_aromatic_ring: arom,
             has_cc_double_bond: cc,
             has_halogen: hal,
+            cc_double_bond_count: 0,
+            has_triple_bond: false,
+            chlorine_count: 0,
+            is_pure_hydrocarbon: false,
+            is_chloro_hydrocarbon: false,
         }
     }
 
@@ -700,5 +803,83 @@ mod tests {
         let h = map_to_subheading(&[], &OrganicInorganic::Inorganic, &f);
         assert!(h.subheading.is_none());
         assert_eq!(h.chapter, 28);
+    }
+
+    // ── v0.5.2 hydrocarbon / chloroalkane subheadings ────────────────────
+    #[test]
+    fn isoprene_subheading_290124() {
+        let r = classify_smiles("C=CC(C)=C").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290124"));
+        assert!(r.heading_hint.confidence >= 0.85);
+    }
+
+    #[test]
+    fn buta13diene_subheading_290124() {
+        let r = classify_smiles("C=CC=C").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290124"));
+    }
+
+    #[test]
+    fn cyclohexane_subheading_290211() {
+        let r = classify_smiles("C1CCCCC1").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290211"));
+        assert!(r.heading_hint.confidence >= 0.85);
+    }
+
+    #[test]
+    fn ethylene_subheading_290121() {
+        let r = classify_smiles("C=C").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290121"));
+        assert!(r.heading_hint.confidence >= 0.88);
+    }
+
+    #[test]
+    fn propylene_subheading_290122() {
+        let r = classify_smiles("CC=C").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290122"));
+    }
+
+    #[test]
+    fn hexane_subheading_290110() {
+        let r = classify_smiles("CCCCCC").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290110"));
+    }
+
+    #[test]
+    fn benzene_subheading_290220() {
+        let r = classify_smiles("c1ccccc1").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290220"));
+        assert_eq!(r.heading_hint.chapter, 29);
+    }
+
+    #[test]
+    fn toluene_subheading_290230() {
+        let r = classify_smiles("Cc1ccccc1").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290230"));
+    }
+
+    #[test]
+    fn styrene_subheading_290250() {
+        let r = classify_smiles("C=Cc1ccccc1").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290250"));
+    }
+
+    #[test]
+    fn dcm_subheading_290312() {
+        let r = classify_smiles("ClCCl").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290312"));
+        assert!(r.heading_hint.confidence >= 0.88);
+    }
+
+    #[test]
+    fn chloroform_subheading_290313() {
+        let r = classify_smiles("ClC(Cl)Cl").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290313"));
+    }
+
+    #[test]
+    fn ccl4_subheading_290314() {
+        let r = classify_smiles("ClC(Cl)(Cl)Cl").unwrap();
+        assert_eq!(r.heading_hint.subheading.as_deref(), Some("290314"));
     }
 }

@@ -442,6 +442,22 @@ pub struct StructuralFeatures {
     pub has_cc_double_bond: bool,
     /// `true` when a halogen substituent (F, Cl, Br, I) is present.
     pub has_halogen: bool,
+    // ── v0.5.2 additions ─────────────────────────────────────────────────
+    /// Number of C=C double bonds (counts "=C"/"=c" occurrences).
+    /// Used to distinguish monoenes from dienes (e.g. isoprene has 2).
+    pub cc_double_bond_count: u32,
+    /// `true` when a C≡C triple bond is present (alkynes → 2901.29).
+    pub has_triple_bond: bool,
+    /// Number of Cl (chlorine) atoms.  Used to resolve 2903.11–2903.15.
+    pub chlorine_count: u32,
+    /// `true` when the SMILES contains only carbon and hydrogen atoms —
+    /// no heteroatoms (O, N, S, P) and no halogens.
+    /// Routes acyclic/cyclic hydrocarbons to HS 2901/2902.
+    pub is_pure_hydrocarbon: bool,
+    /// `true` when the SMILES contains only C, H, and Cl —
+    /// no other heteroatoms and no F/Br/I.
+    /// Routes simple chlorinated hydrocarbons to HS 2903.
+    pub is_chloro_hydrocarbon: bool,
 }
 
 /// Extract structural features from a canonical SMILES string.
@@ -460,6 +476,11 @@ pub fn detect_structural_features(smiles: &str) -> StructuralFeatures {
             || smiles.contains("Cl")
             || smiles.contains("Br")
             || (smiles.contains('I') && !smiles.contains("In")),
+        cc_double_bond_count: count_cc_double_bonds(smiles),
+        has_triple_bond:      detect_triple_bond(smiles),
+        chlorine_count:       count_chlorines(smiles),
+        is_pure_hydrocarbon:  is_pure_hydrocarbon_smiles(smiles),
+        is_chloro_hydrocarbon: is_chloro_only_smiles(smiles),
     }
 }
 
@@ -577,6 +598,69 @@ fn cc_double_bond_present(smiles: &str) -> bool {
         // Branch form: C(=C)... e.g. methacrylic acid CC(=C)C(=O)O
         || smiles.contains("(=C)")
         || smiles.contains("(=c)")
+}
+
+/// Count the number of C=C double bonds by counting "=C" / "=c" patterns.
+fn count_cc_double_bonds(smiles: &str) -> u32 {
+    let bytes = smiles.as_bytes();
+    let mut count = 0u32;
+    for i in 0..bytes.len().saturating_sub(1) {
+        if bytes[i] == b'=' && matches!(bytes[i + 1], b'C' | b'c') {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Return `true` when the SMILES contains a C#C triple bond (alkyne).
+fn detect_triple_bond(smiles: &str) -> bool {
+    smiles.contains("C#C") || smiles.contains("C#c") || smiles.contains("c#C") || smiles.contains("c#c")
+}
+
+/// Count the number of chlorine atoms (the two-character token "Cl").
+fn count_chlorines(smiles: &str) -> u32 {
+    let bytes = smiles.as_bytes();
+    let mut count = 0u32;
+    for i in 0..bytes.len().saturating_sub(1) {
+        if bytes[i] == b'C' && bytes[i + 1] == b'l' {
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Return `true` when the SMILES contains only C and H atoms — no
+/// heteroatoms (O, N, S, P) and no halogens.
+fn is_pure_hydrocarbon_smiles(smiles: &str) -> bool {
+    !smiles.contains('O')
+        && !smiles.contains('o')
+        && !smiles.contains('N')
+        && !smiles.contains('n')
+        && !smiles.contains('S')
+        && !smiles.contains('s')
+        && !smiles.contains('P')
+        && !smiles.contains('p')
+        && !smiles.contains('F')
+        && !smiles.contains('I')
+        && !smiles.contains("Cl")
+        && !smiles.contains("Br")
+}
+
+/// Return `true` when the SMILES contains only C, H, and Cl —
+/// no other heteroatoms and no F/Br/I halogens.
+fn is_chloro_only_smiles(smiles: &str) -> bool {
+    !smiles.contains('O')
+        && !smiles.contains('o')
+        && !smiles.contains('N')
+        && !smiles.contains('n')
+        && !smiles.contains('S')
+        && !smiles.contains('s')
+        && !smiles.contains('P')
+        && !smiles.contains('p')
+        && !smiles.contains('F')
+        && !smiles.contains('I')
+        && !smiles.contains("Br")
+        && smiles.contains("Cl")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -858,5 +942,59 @@ mod tests {
         let f = sf("CO");
         assert_eq!(f.carbon_count, 1);
         assert_eq!(f.hydroxyl_count, 1);
+    }
+
+    #[test]
+    fn isoprene_structural_features() {
+        let f = detect_structural_features("C=CC(C)=C");
+        assert_eq!(f.cc_double_bond_count, 2);
+        assert_eq!(f.carbon_count, 5);
+        assert!(f.is_pure_hydrocarbon);
+        assert!(!f.has_ring);
+        assert!(!f.has_triple_bond);
+    }
+
+    #[test]
+    fn dcm_structural_features() {
+        let f = detect_structural_features("ClCCl");
+        assert_eq!(f.chlorine_count, 2);
+        assert_eq!(f.carbon_count, 1);
+        assert!(f.is_chloro_hydrocarbon);
+        assert!(!f.is_pure_hydrocarbon);
+    }
+
+    #[test]
+    fn cyclohexane_structural_features() {
+        let f = detect_structural_features("C1CCCCC1");
+        assert!(f.has_ring);
+        assert!(!f.has_aromatic_ring);
+        assert!(f.is_pure_hydrocarbon);
+        assert_eq!(f.carbon_count, 6);
+        assert_eq!(f.cc_double_bond_count, 0);
+    }
+
+    #[test]
+    fn ethylene_cc_count_1() {
+        let f = detect_structural_features("C=C");
+        assert_eq!(f.cc_double_bond_count, 1);
+        assert!(f.is_pure_hydrocarbon);
+    }
+
+    #[test]
+    fn chloroform_chlorine_count_3() {
+        let f = detect_structural_features("ClC(Cl)Cl");
+        assert_eq!(f.chlorine_count, 3);
+        assert_eq!(f.carbon_count, 1);
+        assert!(f.is_chloro_hydrocarbon);
+    }
+
+    #[test]
+    fn acetone_not_pure_hydrocarbon() {
+        let f = detect_structural_features("CC(C)=O");
+        assert!(!f.is_pure_hydrocarbon);
+        assert!(!f.is_chloro_hydrocarbon);
+        // cc_double_bond_count: "=O" does not have 'C' after '=', but check "=C" is 0
+        // acetone has C=O not C=C, count should be 0
+        assert_eq!(f.cc_double_bond_count, 0);
     }
 }

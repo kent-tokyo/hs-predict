@@ -361,10 +361,40 @@ pub static JP_RULES: &[JpRule] = &[
         tariff_rate: Some("free"),
     },
     JpRule {
+        hs_code: "290121",
+        jp_code: "290121000",
+        jp_description: "エチレン",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290122",
+        jp_code: "290122000",
+        jp_description: "プロペン（プロピレン）",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290123",
+        jp_code: "290123000",
+        jp_description: "ブテン（ブチレン）及びその異性体",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290129",
+        jp_code: "290129000",
+        jp_description: "その他の不飽和非環式炭化水素",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
         hs_code: "290211",
         jp_code: "290211000",
         jp_description: "シクロヘキサン",
         tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290219",
+        jp_code: "290219000",
+        jp_description: "その他の飽和及び不飽和脂環式炭化水素",
+        tariff_rate: Some("無税"),
     },
     JpRule {
         hs_code: "290220",
@@ -379,10 +409,58 @@ pub static JP_RULES: &[JpRule] = &[
         tariff_rate: Some("free"),
     },
     JpRule {
+        hs_code: "290241",
+        jp_code: "290241000",
+        jp_description: "オルト-キシレン",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290242",
+        jp_code: "290242000",
+        jp_description: "メタ-キシレン",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290243",
+        jp_code: "290243000",
+        jp_description: "パラ-キシレン",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
         hs_code: "290244",
         jp_code: "290244000",
         jp_description: "混合キシレン異性体",
         tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290250",
+        jp_code: "290250000",
+        jp_description: "スチレン",
+        tariff_rate: Some("6.4%"),
+    },
+    JpRule {
+        hs_code: "290260",
+        jp_code: "290260000",
+        jp_description: "エチルベンゼン",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290270",
+        jp_code: "290270000",
+        jp_description: "クメン",
+        tariff_rate: Some("4.6%"),
+    },
+    JpRule {
+        hs_code: "290290",
+        jp_code: "290290000",
+        jp_description: "その他の環式炭化水素",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290311",
+        jp_code: "290311000",
+        jp_description: "塩化メチル及び塩化エチル",
+        tariff_rate: Some("無税"),
     },
     JpRule {
         hs_code: "290312",
@@ -401,6 +479,18 @@ pub static JP_RULES: &[JpRule] = &[
         jp_code: "290314000",
         jp_description: "四塩化炭素",
         tariff_rate: Some("free"),
+    },
+    JpRule {
+        hs_code: "290315",
+        jp_code: "290315000",
+        jp_description: "エチレンジクロリド（1,2-ジクロロエタン）",
+        tariff_rate: Some("無税"),
+    },
+    JpRule {
+        hs_code: "290319",
+        jp_code: "290319000",
+        jp_description: "その他の非環式炭化水素の塩素化誘導体",
+        tariff_rate: Some("無税"),
     },
     JpRule {
         hs_code: "290511",

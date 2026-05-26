@@ -21,6 +21,7 @@
 - **148-entry static rule table** (133 compounds) — common industrial chemicals across Chapters 28, 29, 38, 72–81
 - **SMILES functional-group detection** *(v0.3)* — 20 functional groups, organic/inorganic classification, heading-level hint (≤ 0.70 confidence)
 - **SMILES structural engine** *(v0.5.1)* — carbon count, hydroxyl count, ring/aromaticity/C=C detection; resolves to 6-digit HS subheading for ketones (29.14.11–31), alcohols (29.05/22.07), carboxylic acids (29.15/29.16), and aldehydes (29.12); confidence up to 0.90
+- **Hydrocarbon & chloroalkane engine** *(v0.5.2)* — pure hydrocarbon detection (no heteroatoms); C=C bond counting for diene/isoprene distinction; resolves HS 2901 (acyclic: ethylene, propylene, isoprene…), 2902 (cyclic: cyclohexane, benzene, styrene…), and 2903 (chloromethane, DCM, chloroform, CCl4…) to 6-digit subheadings
 - **Mixture GRI classification** *(v0.5)* — GRI 3a (same chapter), GRI 3b (essential character / dominant component > 50 % w/w), GRI 3c (last heading numerically); special-use routing for pharmaceuticals (Ch. 30), cosmetics (Ch. 33), food preparations (Ch. 21), agrochemicals (Ch. 38.08)
 - **Compliance risk flags** *(v0.5)* — `GrayZone` identifies Chapter 28/29/38 boundary cases; `RecommendedAction::PriorConsultation` signals when an advance ruling (事前教示) should be requested
 - **Batch processing** *(v0.5)* — `classify_batch()` and `classify_batch_with_llm()` for multi-product workflows
@@ -433,7 +434,7 @@ Q2: Is this a mixture?
 
 ```toml
 [dependencies]
-hs-predict = { version = "0.5.1", features = ["pubchem"] }
+hs-predict = { version = "0.5.2", features = ["pubchem"] }
 ```
 
 ---
@@ -471,6 +472,7 @@ hs-predict = { version = "0.5.1", features = ["pubchem"] }
 | 0.4.1 | ✅ Released | WASM companion crate + `Serialize` additions |
 | 0.5.0 | ✅ Released | Mixture GRI 3a/3b/3c · `GrayZone` · `PriorConsultation` · 133 compounds · batch · security hardening |
 | 0.5.1 | ✅ Released | SMILES structural engine — 6-digit subheading for ketones, alcohols, acids, aldehydes; confidence up to 0.90 |
+| 0.5.2 | ✅ Released | Hydrocarbon engine (HS 2901/2902) + chloroalkane engine (HS 2903) — isoprene, cyclohexane, DCM and 13 more CAS entries |
 | 0.6.0 | 📋 Planned | npm publish · GitHub Actions CI · WASM tests |
 
 ---

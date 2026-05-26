@@ -1217,13 +1217,43 @@ pub static HS_RULES: &[HsRule] = &[
     // Chapter 29 — Organic chemicals (v0.5 additions)
     // ═══════════════════════════════════════════════════════════════
 
-    // ── Styrene 100-42-5 ─────────────────────────────────────────
+    // ── Ethylene 74-85-1 ─────────────────────────────────────────
     HsRule {
-        cas: "100-42-5",
+        cas: "74-85-1",
         shape: ShapePattern::Any,
         purity_range: None,
-        hs_code: "290125",
-        heading_description: "Styrene",
+        hs_code: "290121",
+        heading_description: "Ethylene",
+        confidence: 0.97,
+    },
+
+    // ── Propylene 115-07-1 ────────────────────────────────────────
+    HsRule {
+        cas: "115-07-1",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290122",
+        heading_description: "Propylene (propene)",
+        confidence: 0.97,
+    },
+
+    // ── 1-Butene 106-98-9 ─────────────────────────────────────────
+    HsRule {
+        cas: "106-98-9",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290123",
+        heading_description: "1-Butene (butylene) and its isomers",
+        confidence: 0.97,
+    },
+
+    // ── Isoprene 78-79-5 ──────────────────────────────────────────
+    HsRule {
+        cas: "78-79-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290124",
+        heading_description: "Buta-1,3-diene and isoprene — isoprene",
         confidence: 0.97,
     },
 
@@ -1234,6 +1264,106 @@ pub static HS_RULES: &[HsRule] = &[
         purity_range: None,
         hs_code: "290124",
         heading_description: "Buta-1,3-diene",
+        confidence: 0.97,
+    },
+
+    // ── Cyclohexane (liquid) 110-82-7 ─────────────────────────────
+    HsRule {
+        cas: "110-82-7",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290211",
+        heading_description: "Cyclohexane",
+        confidence: 0.97,
+    },
+
+    // ── Toluene (liquid) 108-88-3 ────────────────────────────────
+    HsRule {
+        cas: "108-88-3",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290230",
+        heading_description: "Toluene",
+        confidence: 0.97,
+    },
+
+    // ── Styrene 100-42-5 ─────────────────────────────────────────
+    HsRule {
+        cas: "100-42-5",
+        shape: ShapePattern::Any,
+        purity_range: None,
+        hs_code: "290125",
+        heading_description: "Styrene",
+        confidence: 0.97,
+    },
+
+    // ── Styrene (liquid) 100-42-5 ────────────────────────────────
+    HsRule {
+        cas: "100-42-5",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290250",
+        heading_description: "Styrene (liquid)",
+        confidence: 0.97,
+    },
+
+    // ── Ethylbenzene 100-41-4 ─────────────────────────────────────
+    HsRule {
+        cas: "100-41-4",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290260",
+        heading_description: "Ethylbenzene",
+        confidence: 0.97,
+    },
+
+    // ── Cumene (isopropylbenzene) 98-82-8 ────────────────────────
+    HsRule {
+        cas: "98-82-8",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290270",
+        heading_description: "Cumene (isopropylbenzene)",
+        confidence: 0.97,
+    },
+
+    // ── Dichloromethane (liquid) 75-09-2 ─────────────────────────
+    HsRule {
+        cas: "75-09-2",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290312",
+        heading_description: "Dichloromethane (methylene chloride)",
+        confidence: 0.97,
+    },
+
+    // ── Chloroform (liquid) 67-66-3 ──────────────────────────────
+    HsRule {
+        cas: "67-66-3",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290313",
+        heading_description: "Chloroform (trichloromethane)",
+        confidence: 0.97,
+    },
+
+    // ── Carbon tetrachloride (liquid) 56-23-5 ────────────────────
+    HsRule {
+        cas: "56-23-5",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290314",
+        heading_description: "Carbon tetrachloride",
+        confidence: 0.97,
+    },
+
+    // ── 1,2-Dichloroethane 107-06-2 ──────────────────────────────
+    HsRule {
+        cas: "107-06-2",
+        shape: ShapePattern::Liquid,
+        purity_range: None,
+        hs_code: "290315",
+        heading_description: "1,2-Dichloroethane (ethylene dichloride)",
         confidence: 0.97,
     },
 
